@@ -10,23 +10,23 @@ export interface ApiKeys {
 }
 
 const getSystemInstruction = () => {
-  return `You are an expert music archivist with access to a vast database of music information, equivalent to searching across major portals like MusicBrainz, Discogs, AllMusic, Spotify, and Apple Music.
+  return `You are an expert music archivist with access to a vast database of music information.
 Your task is to identify the song from the provided filename and any existing tags, and then provide the most accurate and complete ID3 tag information possible.
 
 RULES FOR MERGING AND ACCURACY:
 - Analyze the filename and existing tags to identify the track.
 - Existing tags provided in the input are hints. If they seem correct, preserve them. If they seem wrong or missing, correct/fill them.
-- If you cannot confidently determine a piece of information, return null or omit the field. DO NOT return empty strings ("") or generic placeholders like "Unknown Artist" if the user provided specific data.
-- VERY IMPORTANT: Prioritize the original studio album the song was first released on. Avoid 'Greatest Hits' compilations, singles, or re-releases unless it's the only available source.
+- If you cannot confidently determine a piece of information, return null or omit the field. DO NOT return empty strings ("") or generic placeholders like "Unknown Artist".
+- Prioritize the original studio album.
 
 TAGS TO FIND:
 - title, artist, album, release year (4 digits), genre.
-- track number, disc number (e.g., '1/2').
-- album artist, composer, original artist (for covers).
-- copyright info, encoded by.
-- mood (e.g., energetic, melancholic), comments (brief facts).
+- trackNumber, discNumber.
+- albumArtist, composer, originalArtist.
+- copyright, encodedBy.
+- mood, comments.
 - albumCoverUrl (high-quality image URL).
-- Infer technical specs if possible: bitrate (kbps), sampleRate (Hz).
+- bitrate, sampleRate (estimates).
 
 The response must be in JSON format.`;
 };
@@ -81,7 +81,6 @@ const callGeminiWithRetry = async (
             if (i < maxRetries - 1) {
                 // Exponential backoff
                 const delay = Math.pow(2, i) * 1000;
-                console.log(`Ponawiam próbę za ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
@@ -91,19 +90,13 @@ const callGeminiWithRetry = async (
 
 // Helper to determine if a new value should overwrite an old one
 const shouldOverwrite = (newValue: any, oldValue: any): boolean => {
-    // If new value is empty/null/undefined, keep the old one
     if (newValue === null || newValue === undefined || newValue === '') return false;
-    
-    // If new value is a string, check for generic placeholders that are worse than existing data
     if (typeof newValue === 'string') {
         const lowerNew = newValue.toLowerCase();
-        // If AI returns "Unknown", but we have a real value, keep the real value
         if ((lowerNew.includes('unknown') || lowerNew.includes('undefined')) && oldValue && oldValue.length > 0) {
             return false;
         }
     }
-    
-    // Otherwise, assume the new AI value is better or we didn't have an old value
     return true;
 };
 
@@ -125,17 +118,18 @@ export const fetchTagsForFile = async (
     try {
         const response = await callGeminiWithRetry(() => 
             ai.models.generateContent({
-                model: "gemini-2.5-flash",
+                model: "gemini-3-pro-preview", // UPDATED MODEL
                 contents: prompt,
                 config: {
                     systemInstruction: getSystemInstruction(),
                     responseMimeType: "application/json",
                     responseSchema: singleFileResponseSchema,
+                    thinkingConfig: { thinkingBudget: 32768 } // ADDED THINKING BUDGET
                 },
             })
         );
 
-        const text = response.text.trim();
+        const text = response.text?.trim() || "{}";
         let parsedResponse: Partial<ID3Tags>;
 
         try {
@@ -145,7 +139,6 @@ export const fetchTagsForFile = async (
             throw new Error("Otrzymano nieprawidłowy format JSON z AI.");
         }
 
-        // Intelligent Merge Logic
         const mergedTags: ID3Tags = { ...originalTags };
         
         Object.keys(parsedResponse).forEach((key) => {
@@ -154,8 +147,6 @@ export const fetchTagsForFile = async (
             const oldValue = originalTags[typedKey];
 
             if (shouldOverwrite(newValue, oldValue)) {
-                // We need to cast to any here because TypeScript struggles with the dynamic key assignment 
-                // on the interface types, even though we checked keys.
                 (mergedTags as any)[typedKey] = newValue;
             }
         });
@@ -171,39 +162,20 @@ export const fetchTagsForFile = async (
     }
   }
   
-  // Handle other providers (placeholder)
-  if (provider === 'grok') {
-    if (!apiKeys.grok) {
-      throw new Error("Klucz API dla Grok nie został podany w ustawieniach.");
-    }
-    // Placeholder for actual Grok API call
-    console.warn(`Dostawca Grok nie jest jeszcze zaimplementowany. Użycie klucza API zostało pominięte.`);
-    return originalTags;
-  }
-
-  if (provider === 'openai') {
-    if (!apiKeys.openai) {
-      throw new Error("Klucz API dla OpenAI nie został podany w ustawieniach.");
-    }
-    // Placeholder for actual OpenAI API call
-    console.warn(`Dostawca OpenAI nie jest jeszcze zaimplementowany. Użycie klucza API zostało pominięte.`);
-    return originalTags;
+  // Placeholder for other providers
+  if (provider === 'grok' || provider === 'openai') {
+      console.warn(`${provider} not implemented yet.`);
+      return originalTags;
   }
   
-  // Fallback for an unknown provider
-  console.warn(`Nieznany dostawca ${provider}. Zwracam oryginalne tagi.`);
   return originalTags;
 };
-
-export interface BatchResult extends ID3Tags {
-    originalFilename: string;
-}
 
 export const fetchTagsForBatch = async (
     files: AudioFile[],
     provider: AIProvider,
     apiKeys: ApiKeys
-): Promise<BatchResult[]> => {
+): Promise<({ originalFilename: string } & ID3Tags)[]> => {
     if (provider === 'gemini') {
         if (!process.env.API_KEY) {
             throw new Error("Klucz API Gemini nie jest skonfigurowany w zmiennych środowiskowych (API_KEY).");
@@ -211,22 +183,23 @@ export const fetchTagsForBatch = async (
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
         const fileList = files.map(f => JSON.stringify({ filename: f.file.name, existingTags: f.originalTags })).join(',\n');
-        const prompt = `You are a music archivist. I have a batch of audio files that may be from the same album or artist. Please identify each track based on its filename and existing tags, and provide its full ID3 tags. Pay close attention to filenames that suggest they are from the same album or artist (e.g., sequential track numbers like '01-song.mp3', '02-another.mp3'). For these related files, ensure the 'artist', 'album', and 'albumArtist' tags are identical to maintain consistency. Here is the list of files:\n\n[${fileList}]\n\nReturn your response as a valid JSON array. Each object in the array must correspond to one of the input files and contain the 'originalFilename' I provided, along with all the identified tags from the schema.`;
+        const prompt = `Batch identify these songs. Filenames and existing tags:\n[${fileList}]\n\nReturn a JSON array of objects with 'originalFilename' and identified tags. Consistency for albums is key.`;
 
         try {
             const response = await callGeminiWithRetry(() =>
                 ai.models.generateContent({
-                    model: "gemini-2.5-flash",
+                    model: "gemini-3-pro-preview", // UPDATED MODEL
                     contents: prompt,
                     config: {
                         systemInstruction: getSystemInstruction(),
                         responseMimeType: "application/json",
                         responseSchema: batchFileResponseSchema,
+                        thinkingConfig: { thinkingBudget: 32768 } // ADDED THINKING BUDGET
                     },
                 })
             );
             
-            const text = response.text.trim();
+            const text = response.text?.trim() || "[]";
             let parsedResponse: any[];
             try {
                 parsedResponse = JSON.parse(text);
@@ -236,62 +209,36 @@ export const fetchTagsForBatch = async (
             }
             
             if (!Array.isArray(parsedResponse)) {
-                 console.error("Batch AI response is not a valid JSON array.", parsedResponse);
                  throw new Error("Odpowiedź AI nie jest w formacie tablicy JSON.");
             }
             
-            // Validate the response to ensure it matches what we requested.
-            const validatedResults: BatchResult[] = [];
-            const requestedFilenames = new Set(files.map(f => f.file.name));
-            const processedFilenames = new Set<string>();
-            
-            // Map files for easier lookup to perform merge
+            const validatedResults: any[] = [];
             const filesMap = new Map(files.map(f => [f.file.name, f]));
         
             for (const item of parsedResponse) {
-                try {
-                    if (typeof item !== 'object' || item === null) {
-                        continue;
-                    }
-                    if (!item.originalFilename || !requestedFilenames.has(item.originalFilename)) {
-                        continue;
-                    }
-                    if (processedFilenames.has(item.originalFilename)) {
-                        continue;
-                    }
+                if (!item.originalFilename) continue;
+                
+                const originalFile = filesMap.get(item.originalFilename);
+                const originalTags = originalFile ? originalFile.originalTags : {};
+                const mergedItem: any = { originalFilename: item.originalFilename };
+                
+                const allKeys = new Set([...Object.keys(item), ...Object.keys(originalTags)]);
+                allKeys.forEach(key => {
+                    if (key === 'originalFilename') return;
+                    const newVal = item[key];
+                    const oldVal = (originalTags as any)[key];
                     
-                    // Perform Smart Merge for Batch Items too
-                    const originalFile = filesMap.get(item.originalFilename);
-                    const originalTags = originalFile ? originalFile.originalTags : {};
-                    
-                    const mergedItem: any = { originalFilename: item.originalFilename };
-                    
-                    // Merge standard fields
-                    const allKeys = new Set([...Object.keys(item), ...Object.keys(originalTags)]);
-                    allKeys.forEach(key => {
-                        if (key === 'originalFilename') return;
-                        const newVal = item[key];
-                        const oldVal = (originalTags as any)[key];
-                        
-                        if (shouldOverwrite(newVal, oldVal)) {
-                            mergedItem[key] = newVal;
-                        } else {
-                             mergedItem[key] = oldVal;
-                        }
-                    });
+                    if (shouldOverwrite(newVal, oldVal)) {
+                        mergedItem[key] = newVal;
+                    } else {
+                         mergedItem[key] = oldVal;
+                    }
+                });
 
-                    validatedResults.push(mergedItem as BatchResult);
-                    processedFilenames.add(item.originalFilename);
-                } catch (e) {
-                    console.error("Error processing a single item in batch response. Skipping.", { item, error: e });
-                }
-            }
-        
-            if(validatedResults.length < files.length) {
-                console.warn(`Batch response contained ${validatedResults.length} valid items, but ${files.length} files were requested. Some files may not be updated.`);
+                validatedResults.push(mergedItem);
             }
             
-            return validatedResults;
+            return validatedResults as any;
 
         } catch (error) {
             console.error("Błąd podczas pobierania tagów wsadowo z Gemini API:", error);
@@ -300,21 +247,6 @@ export const fetchTagsForBatch = async (
             }
             throw new Error("Wystąpił nieznany błąd wsadowy z Gemini API.");
         }
-    }
-
-    // Handle other providers for batch mode
-    if (provider === 'grok') {
-        if (!apiKeys.grok) {
-          throw new Error("Klucz API dla Grok nie został podany w ustawieniach.");
-        }
-        throw new Error("Tryb wsadowy nie jest zaimplementowany dla dostawcy Grok.");
-    }
-
-    if (provider === 'openai') {
-        if (!apiKeys.openai) {
-          throw new Error("Klucz API dla OpenAI nie został podany w ustawieniach.");
-        }
-        throw new Error("Tryb wsadowy nie jest zaimplementowany dla dostawcy OpenAI.");
     }
 
     throw new Error(`Nieznany dostawca ${provider} nie jest obsługiwany w trybie wsadowym.`);

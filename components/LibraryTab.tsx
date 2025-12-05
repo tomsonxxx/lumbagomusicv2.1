@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { AudioFile, ProcessingState } from '../types';
 import HeaderToolbar from './HeaderToolbar';
@@ -8,7 +9,7 @@ import FilterSidebar from './FilterSidebar';
 
 interface LibraryTabProps {
   files: AudioFile[];
-  sortedFiles: AudioFile[]; // To są pliki posortowane, ale jeszcze nie przefiltrowane przez Search/Sidebar
+  sortedFiles: AudioFile[]; 
   selectedFiles: AudioFile[];
   allFilesSelected: boolean;
   isBatchAnalyzing: boolean;
@@ -28,10 +29,15 @@ interface LibraryTabProps {
   onProcessFile: (file: AudioFile) => void;
   onSelectionChange: (fileId: string, isSelected: boolean) => void;
   onTabChange: (tabId: string) => void;
+  // Player props
+  playingFileId: string | null;
+  isPlaying: boolean;
+  onPlayPause: (fileId: string) => void;
+  // Inspector prop
+  onInspectItem: (fileId: string) => void;
 }
 
 const LibraryTab: React.FC<LibraryTabProps> = (props) => {
-  // --- Stan Lokalny dla UI Biblioteki ---
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -45,14 +51,9 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
       status: null
   });
 
-  // --- Logika Filtrowania ---
-  // Używamy props.files (wszystkie) do budowy filtrów, ale props.sortedFiles do wyświetlania kolejności
-  // Najpierw sortujemy (robi to App.tsx), potem filtrujemy tutaj.
-  
   const filteredFiles = useMemo(() => {
     let result = props.sortedFiles;
 
-    // 1. Wyszukiwarka tekstowa
     if (searchQuery.trim()) {
         const lowerQuery = searchQuery.toLowerCase();
         result = result.filter(file => {
@@ -66,7 +67,6 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
         });
     }
 
-    // 2. Filtry Boczne
     if (activeFilters.genre) {
         result = result.filter(f => {
              const g = f.fetchedTags?.genre || f.originalTags?.genre;
@@ -117,7 +117,7 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
   }
 
   return (
-    <div className="relative min-h-[500px]"> {/* Min-height dla stabilności layoutu przy pustym filtrze */}
+    <div className="relative min-h-[500px]">
        {props.isRestored && (
             <div className="my-4 p-3 bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-500 text-yellow-800 dark:text-yellow-300 rounded-r-lg animate-fade-in" role="alert">
                 <div className="flex justify-between items-center gap-4">
@@ -153,7 +153,6 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
         isDirectAccessMode={!!props.directoryHandle}
         directoryName={props.directoryHandle?.name}
         isRestored={props.isRestored}
-        // New props
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         viewMode={viewMode}
@@ -162,7 +161,6 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
         showFilters={showFilters}
       />
       
-      {/* Sidebar Filtrów */}
       <FilterSidebar 
           files={props.files}
           filters={activeFilters}
@@ -171,7 +169,6 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
           onClose={() => setShowFilters(false)}
       />
 
-      {/* Kontener listy plików */}
       <div className="mt-4 pb-20">
         {filteredFiles.length === 0 ? (
             <div className="text-center py-20 opacity-60">
@@ -189,6 +186,12 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
                   onEdit={(f) => props.onSingleItemEdit(f.id)}
                   onDelete={props.onDeleteItem}
                   onSelectionChange={props.onSelectionChange}
+                  // Player Props
+                  isPlaying={props.playingFileId === file.id && props.isPlaying}
+                  onPlayPause={() => props.onPlayPause(file.id)}
+                  isActive={props.playingFileId === file.id}
+                  // Inspect
+                  onInspect={() => props.onInspectItem(file.id)}
                 />
               ))}
             </div>
@@ -201,6 +204,12 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
                         onProcess={props.onProcessFile}
                         onEdit={(f) => props.onSingleItemEdit(f.id)}
                         onSelectionChange={props.onSelectionChange}
+                        // Player Props
+                        isPlaying={props.playingFileId === file.id && props.isPlaying}
+                        onPlayPause={() => props.onPlayPause(file.id)}
+                        isActive={props.playingFileId === file.id}
+                        // Inspect
+                        onInspect={() => props.onInspectItem(file.id)}
                     />
                  ))}
             </div>

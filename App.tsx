@@ -13,11 +13,13 @@ import BatchEditModal from './components/BatchEditModal';
 import PostDownloadModal from './components/PostDownloadModal';
 import AlbumCoverModal from './components/AlbumCoverModal';
 import PreviewChangesModal from './components/PreviewChangesModal';
+import FileDetailsModal from './components/FileDetailsModal'; // NEW
 import MainToolbar from './components/MainToolbar';
 import TabbedInterface, { Tab } from './components/TabbedInterface';
 import LibraryTab from './components/LibraryTab';
 import ScanTab from './components/ScanTab';
 import PlaceholderTab from './components/PlaceholderTab';
+import GlobalPlayer from './components/GlobalPlayer';
 
 // Types
 import { AudioFile, ProcessingState, ID3Tags } from './types';
@@ -45,6 +47,7 @@ interface RenamePreview {
 type ModalState = 
   | { type: 'none' }
   | { type: 'edit'; fileId: string }
+  | { type: 'inspect'; fileId: string } // NEW
   | { type: 'rename' }
   | { type: 'delete'; fileId: string | 'selected' | 'all' }
   | { type: 'settings' }
@@ -105,6 +108,11 @@ const App: React.FC = () => {
     const [modalState, setModalState] = useState<ModalState>({ type: 'none' });
     const [activeTab, setActiveTab] = useState('library');
 
+    // --- Player State ---
+    const [playingFileId, setPlayingFileId] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [volume, setVolume] = useState(0.8);
+
     const processingQueueRef = useRef<string[]>([]);
     const activeRequestsRef = useRef(0);
 
@@ -116,7 +124,7 @@ const App: React.FC = () => {
         } else if (files.length === 0) {
             setActiveTab('scan');
         }
-    }, []); // Only run once on mount
+    }, []); 
     
     useEffect(() => { localStorage.setItem('theme', theme); document.documentElement.className = theme; }, [theme]);
     useEffect(() => { localStorage.setItem('apiKeys', JSON.stringify(apiKeys)); }, [apiKeys]);
@@ -165,7 +173,7 @@ const App: React.FC = () => {
         }
     }, [files, aiProvider, apiKeys, updateFileState]);
 
-    const handleClearAndReset = () => { setFiles([]); setIsRestored(false); setDirectoryHandle(null); setActiveTab('scan'); };
+    const handleClearAndReset = () => { setFiles([]); setIsRestored(false); setDirectoryHandle(null); setActiveTab('scan'); setPlayingFileId(null); setIsPlaying(false); };
 
     const addFilesToQueue = useCallback(async (filesToAdd: { file: File, handle?: any, path?: string }[]) => {
         if (typeof uuid === 'undefined') { alert("Błąd: Biblioteka 'uuid' nie załadowana."); return; }
@@ -215,11 +223,43 @@ const App: React.FC = () => {
         processQueue();
     }, [processQueue]);
     
+    // --- Player Logic ---
+    const playingFile = useMemo(() => files.find(f => f.id === playingFileId) || null, [files, playingFileId]);
+    
+    const handlePlay = (fileId: string) => {
+        if (playingFileId === fileId) {
+            setIsPlaying(!isPlaying);
+        } else {
+            setPlayingFileId(fileId);
+            setIsPlaying(true);
+        }
+    };
+
+    const handleNext = () => {
+        const idx = sortedFiles.findIndex(f => f.id === playingFileId);
+        if (idx !== -1 && idx < sortedFiles.length - 1) {
+            setPlayingFileId(sortedFiles[idx + 1].id);
+        }
+    };
+
+    const handlePrev = () => {
+         const idx = sortedFiles.findIndex(f => f.id === playingFileId);
+         if (idx > 0) {
+             setPlayingFileId(sortedFiles[idx - 1].id);
+         }
+    };
+
     const sortedFiles = useMemo(() => sortFiles([...files], sortKey, sortDirection), [files, sortKey, sortDirection]);
     const selectedFiles = useMemo(() => files.filter(f => f.isSelected), [files]);
     const allFilesSelected = useMemo(() => files.length > 0 && files.every(f => f.isSelected), [files]);
     const isProcessing = useMemo(() => files.some(f => f.state === ProcessingState.PROCESSING), [files]);
-    const modalFile = useMemo(() => (modalState.type === 'edit') ? files.find(f => f.id === modalState.fileId) : undefined, [modalState, files]);
+    
+    // Get file for modals
+    const modalFile = useMemo(() => {
+        if (modalState.type === 'edit') return files.find(f => f.id === modalState.fileId);
+        if (modalState.type === 'inspect') return files.find(f => f.id === modalState.fileId);
+        return undefined;
+    }, [modalState, files]);
 
     const handleSelectionChange = (fileId: string, isSelected: boolean) => updateFileState(fileId, { isSelected });
     const handleToggleSelectAll = () => setFiles(prev => prev.map(f => ({ ...f, isSelected: !allFilesSelected })));
@@ -410,20 +450,25 @@ const App: React.FC = () => {
             onSingleItemEdit={(id) => setModalState({ type: 'edit', fileId: id })} onRename={() => setModalState({ type: 'rename' })}
             onExportCsv={handleExportCsv} onDeleteItem={openDeleteModal} onClearAll={() => openDeleteModal('all')}
             onProcessFile={handleProcessFile} onSelectionChange={handleSelectionChange} onTabChange={setActiveTab}
+            // Player props
+            playingFileId={playingFileId}
+            isPlaying={isPlaying}
+            onPlayPause={handlePlay}
+            // NEW Inspector prop
+            onInspectItem={(id) => setModalState({ type: 'inspect', fileId: id })}
         /> },
         { id: 'scan', label: 'Import / Skan', component: <ScanTab 
             onFilesSelected={handleFilesSelected} onUrlSubmitted={handleUrlSubmitted}
             onDirectoryConnect={handleDirectoryConnect} isProcessing={isProcessing}
         /> },
-        { id: 'player', label: 'Odtwarzacz', component: <PlaceholderTab title="Odtwarzacz" /> },
-        { id: 'tagger', label: 'Smart Tagger AI', component: <PlaceholderTab title="Smart Tagger AI" /> },
+        { id: 'tagger', label: 'Smart Tagger AI', component: <PlaceholderTab title="Smart Tagger AI" description="Zaawansowane tagowanie kontekstowe." /> },
         { id: 'duplicates', label: 'Wyszukiwarka Duplikatów', component: <PlaceholderTab title="Wyszukiwarka Duplikatów" /> },
         { id: 'converter', label: 'Konwerter XML', component: <PlaceholderTab title="Konwerter XML" /> },
     ];
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-900 min-h-screen font-sans text-slate-800 dark:text-slate-200">
-            <main className="container mx-auto px-4 py-8">
+        <div className="bg-slate-50 dark:bg-slate-900 min-h-screen font-sans text-slate-800 dark:text-slate-200 flex flex-col">
+            <main className="container mx-auto px-4 py-8 flex-grow mb-20">
                 <header className="flex justify-between items-center mb-4">
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Lumbago Music AI</h1>
                     <div className="flex items-center space-x-2">
@@ -440,8 +485,23 @@ const App: React.FC = () => {
                 <Footer />
             </main>
             
+            {/* Global Player Dock */}
+            {playingFileId && (
+                <GlobalPlayer 
+                    currentFile={playingFile}
+                    isPlaying={isPlaying}
+                    volume={volume}
+                    onPlayPause={() => setIsPlaying(!isPlaying)}
+                    onVolumeChange={setVolume}
+                    onNext={handleNext}
+                    onPrev={handlePrev}
+                    onClose={() => { setPlayingFileId(null); setIsPlaying(false); }}
+                />
+            )}
+            
             {modalState.type === 'settings' && <SettingsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={handleSaveSettings} currentKeys={apiKeys} currentProvider={aiProvider} />}
             {modalState.type === 'edit' && modalFile && <EditTagsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={(tags) => handleSaveTags(modalFile.id, tags)} onApply={(tags) => handleApplyTags(modalFile.id, tags)} isApplying={savingFileId === modalFile.id} isDirectAccessMode={!!directoryHandle} file={modalFile} onManualSearch={handleManualSearch} onZoomCover={(imageUrl) => setModalState({ type: 'zoom-cover', imageUrl })} />}
+            {modalState.type === 'inspect' && modalFile && <FileDetailsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} file={modalFile} />}
             {modalState.type === 'rename' && <RenameModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={handleSaveRenamePattern} currentPattern={renamePattern} files={filesForRenamePreview} />}
             {modalState.type === 'delete' && <ConfirmationModal isOpen={true} onCancel={() => setModalState({ type: 'none' })} onConfirm={() => handleDelete(modalState.fileId)} title="Potwierdź usunięcie">{`Czy na pewno chcesz usunąć ${modalState.fileId === 'all' ? 'wszystkie pliki' : modalState.fileId === 'selected' ? `${selectedFiles.length} zaznaczone pliki` : 'ten plik'} z kolejki?`}</ConfirmationModal>}
             {modalState.type === 'batch-edit' && <BatchEditModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={handleBatchEditSave} files={selectedFiles} />}

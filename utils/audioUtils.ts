@@ -1,4 +1,5 @@
 
+
 import { ID3Tags, AudioFile, ProcessingState } from '../types';
 
 // Assume jsmediatags is loaded globally via a <script> tag
@@ -23,7 +24,11 @@ export const isTagWritingSupported = (file: File): boolean => {
         'audio/mp4',  // M4A / MP4
         'audio/x-m4a'
     ];
-    return supportedMimeTypes.includes(file.type);
+    // Check by MIME type first, then fallback to extension if browser detection is generic
+    if (supportedMimeTypes.includes(file.type)) return true;
+    
+    const name = file.name.toLowerCase();
+    return name.endsWith('.mp3') || name.endsWith('.m4a') || name.endsWith('.mp4');
 };
 
 export const readID3Tags = (file: File): Promise<ID3Tags> => {
@@ -38,7 +43,7 @@ export const readID3Tags = (file: File): Promise<ID3Tags> => {
     // a 'tagFormat' error. By skipping it, we avoid the error and proceed smoothly.
     const lowerCaseName = file.name.toLowerCase();
     if (file.type.startsWith('audio/wav') || file.type.startsWith('audio/x-wav') || lowerCaseName.endsWith('.wav') || lowerCaseName.endsWith('.wave')) {
-        console.log(`Pomijanie odczytu tagów dla pliku WAV (${file.name}), ponieważ format nie jest w pełni obsługiwany przez bibliotekę odczytującą.`);
+        // WAV files usually don't have standard ID3 tags read by this lib
         return resolve({});
     }
 
@@ -122,10 +127,20 @@ export const readID3Tags = (file: File): Promise<ID3Tags> => {
         resolve(tags);
       },
       onError: (error: any) => {
+        // FIX: Handle "No suitable tag reader found" gracefully.
+        // This usually happens for fresh files without any ID3 headers.
+        // It is NOT a critical error, just means we start with empty tags.
+        if (error.type === 'tagFormat') {
+            // console.debug(`Informacja: Plik ${file.name} nie posiada wstępnych tagów.`);
+            resolve({});
+            return;
+        }
+
         const errorType = error.type || 'Unknown';
         const errorInfo = error.info || 'No additional info';
-        console.error(`Błąd podczas odczytu tagów z pliku ${file.name}: Typ błędu: ${errorType}, Info: ${errorInfo}`, error);
-        // Resolve with empty tags on error to not block the flow
+        
+        // Log warning but don't crash flow
+        console.warn(`Ostrzeżenie odczytu tagów (${file.name}): ${errorType}`, errorInfo);
         resolve({});
       },
     });
@@ -301,9 +316,11 @@ export const applyTags = async (file: File, tags: ID3Tags): Promise<Blob> => {
         let taggedBuffer: ArrayBuffer;
 
         const fileType = file.type;
-        if (fileType === 'audio/mpeg' || fileType === 'audio/mp3') {
+        const lowerName = file.name.toLowerCase();
+        
+        if (fileType === 'audio/mpeg' || fileType === 'audio/mp3' || lowerName.endsWith('.mp3')) {
             taggedBuffer = await applyID3TagsToFile(fileBuffer, tags);
-        } else if (fileType === 'audio/mp4' || fileType === 'audio/x-m4a') {
+        } else if (fileType === 'audio/mp4' || fileType === 'audio/x-m4a' || lowerName.endsWith('.m4a') || lowerName.endsWith('.mp4')) {
             taggedBuffer = await applyMP4TagsToFile(fileBuffer, tags);
         } else {
             throw new Error(`Nieoczekiwany typ pliku: ${fileType}`);
@@ -415,13 +432,17 @@ export const saveFileDirectly = async (
         if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
              throw new Error(`Użytkownik odmówił uprawnień do zapisu pliku "${filename}". Upewnij się, że zaakceptowałeś prośbę przeglądarki.`);
         }
+        // Specific error codes for file locks:
+        // InvalidStateError: Often file is open in another app (Windows)
+        // NoModificationAllowedError: File is readonly or locked
+        // code 11: InvalidModificatonError (legacy)
         if (e.name === 'InvalidStateError' || e.name === 'NoModificationAllowedError' || e.code === 11) {
-             throw new Error(`Plik "${filename}" jest zablokowany lub używany przez inny program (np. odtwarzacz muzyki). Zamknij inne aplikacje i spróbuj ponownie.`);
+             throw new Error(`Plik "${filename}" jest zablokowany lub używany przez inny program (np. odtwarzacz muzyki, Spotify). Zamknij inne aplikacje korzystające z tego pliku i spróbuj ponownie.`);
         }
         if (e.name === 'QuotaExceededError') {
              throw new Error(`Brak miejsca na dysku, aby zapisać plik "${filename}".`);
         }
-        throw new Error(`Błąd zapisu danych do pliku "${filename}": ${e.message}`);
+        throw new Error(`Błąd zapisu danych do pliku "${filename}": ${e.message} (${e.name})`);
     }
     
     // --- 3. CLEANUP OLD FILE (If Rename/Move occurred) ---

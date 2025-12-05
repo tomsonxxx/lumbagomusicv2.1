@@ -38,6 +38,7 @@ export interface AudioFile {
   dateAdded: number;
   handle?: any; // FileSystemFileHandle for direct saving
   webkitRelativePath?: string; // The relative path of the file within the directory
+  duration?: number; // Duration in seconds
 }
 
 export type GroupKey = 'artist' | 'album' | 'none';
