@@ -29,6 +29,8 @@ import { saveFileDirectly, readID3Tags } from './utils/audioUtils';
 import { sortFiles } from './utils/sortingUtils';
 import { exportFilesToCsv } from './utils/csvUtils';
 import { parseDatabase, LumbagoDatabase } from './utils/databaseService';
+// Import new Health Utility
+import { calculateMetadataHealth } from './utils/metadataHealth';
 
 // Define RenamePreview locally as it is needed for ModalState
 interface RenamePreview {
@@ -72,6 +74,10 @@ const App: React.FC = () => {
   
   const [directoryHandle, setDirectoryHandle] = useState<any>(null);
   
+  // Layout State (Responsiveness)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Settings
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [apiKeys, setApiKeys] = useState<ApiKeys>({ grok: '', openai: '' });
@@ -91,6 +97,11 @@ const App: React.FC = () => {
 
     const savedPattern = localStorage.getItem('renamePattern');
     if (savedPattern) setRenamePattern(savedPattern);
+    
+    // Auto-collapse sidebar on smaller screens initially
+    if (window.innerWidth < 1024) {
+        setIsSidebarCollapsed(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,9 +138,6 @@ const App: React.FC = () => {
     const CHUNK_SIZE = 10;
     const newFiles: AudioFile[] = [];
 
-    // Create placeholders first to show immediate feedback if needed, 
-    // but here we wait for basic tag reading (it's fast enough locally)
-    
     for (let i = 0; i < validFiles.length; i += CHUNK_SIZE) {
         const chunk = validFiles.slice(i, i + CHUNK_SIZE);
         
@@ -137,7 +145,8 @@ const App: React.FC = () => {
         const chunkResults = await Promise.all(chunk.map(async (file) => {
             try {
                 const tags = await readID3Tags(file);
-                return {
+                // Create draft file
+                const audioFile: AudioFile = {
                     id: crypto.randomUUID(),
                     file: file,
                     state: ProcessingState.PENDING,
@@ -146,7 +155,13 @@ const App: React.FC = () => {
                     dateAdded: Date.now(),
                     isSelected: false,
                     isFavorite: false
-                } as AudioFile;
+                };
+                
+                // --- PRE-SCAN: Calculate Metadata Health ---
+                // "Mechanizm 13" wg tag.txt: Analiza wstępna
+                audioFile.health = calculateMetadataHealth(audioFile);
+                
+                return audioFile;
             } catch (e) {
                 console.warn(`Failed to read tags for ${file.name}`, e);
                 // Return bare minimum file on error
@@ -158,15 +173,15 @@ const App: React.FC = () => {
                     fetchedTags: undefined,
                     dateAdded: Date.now(),
                     isSelected: false,
-                    isFavorite: false
+                    isFavorite: false,
+                    health: calculateMetadataHealth({ 
+                        id: '', file, state: ProcessingState.PENDING, originalTags: {}, dateAdded: 0 
+                    } as AudioFile)
                 } as AudioFile;
             }
         }));
         
         newFiles.push(...chunkResults);
-        
-        // Optional: Update state incrementally if list is huge
-        // setFiles(prev => [...prev, ...chunkResults]);
     }
 
     // Final update
@@ -181,7 +196,6 @@ const App: React.FC = () => {
 
   const handleDirectoryConnect = async (handle: any) => {
       setDirectoryHandle(handle);
-      // Recursively scan directory - simplified for now to just let user know
       alert(`Connected to folder: ${handle.name}. Now dragging files from this folder will allow direct saving.`);
   };
 
@@ -226,7 +240,10 @@ const App: React.FC = () => {
               const res = results.find(r => r.originalFilename === f.file.name);
               if (res) {
                   const { originalFilename, ...tags } = res;
-                  return { ...f, fetchedTags: tags, state: ProcessingState.SUCCESS };
+                  const updatedFile = { ...f, fetchedTags: tags, state: ProcessingState.SUCCESS };
+                  // Recalculate health after AI update
+                  updatedFile.health = calculateMetadataHealth(updatedFile);
+                  return updatedFile;
               }
               // If it was processing but no result returned
               if (filesToAnalyze.some(fa => fa.id === f.id) && f.state === ProcessingState.PROCESSING) {
@@ -242,34 +259,44 @@ const App: React.FC = () => {
   const handleManualSearch = async (query: string, file: AudioFile) => {
       try {
           const tags = await fetchTagsForFile(query, file.originalTags, aiProvider, apiKeys);
-          setFiles(prev => prev.map(f => f.id === file.id ? { ...f, fetchedTags: tags } : f));
+          // Return the tags so the modal can update its preview immediately
+          return tags;
       } catch (error) {
           throw error;
       }
   };
 
   const handleSaveTags = (fileId: string, tags: ID3Tags) => {
-      setFiles(prev => prev.map(f => f.id === fileId ? { ...f, fetchedTags: tags } : f));
+      setFiles(prev => prev.map(f => {
+          if (f.id === fileId) {
+              const updatedFile = { ...f, fetchedTags: tags };
+              // Recalculate health
+              updatedFile.health = calculateMetadataHealth(updatedFile);
+              return updatedFile;
+          }
+          return f;
+      }));
   };
 
   const handleApplyTags = async (fileId: string, tags: ID3Tags) => {
       const file = files.find(f => f.id === fileId);
       if (!file || !directoryHandle) return;
       
-      // Update state to reflect saving
       setFiles(prev => prev.map(f => f.id === fileId ? { ...f, state: ProcessingState.DOWNLOADING } : f));
 
       const result = await saveFileDirectly(directoryHandle, { ...file, fetchedTags: tags });
       
       setFiles(prev => prev.map(f => {
           if (f.id === fileId) {
-              return { 
+              const updatedFile = { 
                   ...f, 
                   state: result.success ? ProcessingState.SUCCESS : ProcessingState.ERROR,
                   errorMessage: result.errorMessage,
-                  // If success, update file reference if changed (e.g. rename)
                   ...(result.success && result.updatedFile ? result.updatedFile : {})
               };
+              // Recalculate health
+              updatedFile.health = calculateMetadataHealth(updatedFile);
+              return updatedFile;
           }
           return f;
       }));
@@ -282,10 +309,13 @@ const App: React.FC = () => {
   const handleBatchEditSave = (tags: Partial<ID3Tags>) => {
       setFiles(prev => prev.map(f => {
           if (f.isSelected) {
-              return { 
+              const updatedFile = { 
                   ...f, 
                   fetchedTags: { ...(f.fetchedTags || f.originalTags), ...tags } 
               };
+              // Recalculate health
+              updatedFile.health = calculateMetadataHealth(updatedFile);
+              return updatedFile;
           }
           return f;
       }));
@@ -295,7 +325,6 @@ const App: React.FC = () => {
   const handleSaveRenamePattern = (pattern: string) => {
       setRenamePattern(pattern);
       setModalState({ type: 'none' });
-      // Could trigger rename preview/apply logic here
   };
 
   const handleSaveSettings = (keys: ApiKeys, provider: AIProvider) => {
@@ -379,23 +408,18 @@ const App: React.FC = () => {
   };
 
   const handleImportDatabase = (db: LumbagoDatabase) => {
-      // Need to hydrate files (convert serialized files to AudioFile objects with placeholders or try to match existing)
-      // For now simplistic import:
-      // setFiles(hydrateFiles(db.files)); // Requires implementation of hydrateFiles
       setPlaylists(db.playlists);
       setSmartPlaylists(db.smartPlaylists);
-      // settings...
   };
 
   // Derived Data
   const sortedFiles = useMemo(() => sortFiles(files, sortKey, sortDirection), [files, sortKey, sortDirection]);
   const selectedFiles = useMemo(() => files.filter(f => f.isSelected), [files]);
   
-  // Filter files based on active view
   const filesForView = useMemo(() => {
       if (activeView === 'library' || activeView === 'scan') return sortedFiles;
       if (activeView === 'favorites') return sortedFiles.filter(f => f.isFavorite);
-      if (activeView === 'recent') return sortedFiles.filter(f => Date.now() - f.dateAdded < 24 * 60 * 60 * 1000); // last 24h
+      if (activeView === 'recent') return sortedFiles.filter(f => Date.now() - f.dateAdded < 24 * 60 * 60 * 1000); 
       
       if (activeView.startsWith('playlist:')) {
           const pid = activeView.split(':')[1];
@@ -403,12 +427,6 @@ const App: React.FC = () => {
           if (!playlist) return [];
           return playlist.trackIds.map(id => files.find(f => f.id === id)).filter((f): f is AudioFile => !!f);
       }
-      
-      if (activeView.startsWith('smart:')) {
-          // Implement smart playlist logic filtering here
-          return sortedFiles; // Placeholder
-      }
-      
       return sortedFiles;
   }, [activeView, sortedFiles, playlists, files]);
 
@@ -424,7 +442,7 @@ const App: React.FC = () => {
   const sidebar = (
       <LibrarySidebar 
           activeView={activeView}
-          onViewChange={setActiveView}
+          onViewChange={(v) => { setActiveView(v); setIsMobileMenuOpen(false); }}
           playlists={playlists}
           smartPlaylists={smartPlaylists}
           onCreatePlaylist={createPlaylist}
@@ -432,17 +450,27 @@ const App: React.FC = () => {
           onDeletePlaylist={deletePlaylist}
           totalTracks={files.length}
           favoritesCount={files.filter(f => f.isFavorite).length}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
   );
 
   const header = (
-      <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-              <button className="md:hidden text-slate-400">Menu</button>
-              <h1 className="text-xl font-bold text-white">Lumbago Music AI</h1>
+      <div className="flex items-center justify-between p-3 md:p-4">
+          <div className="flex items-center gap-3">
+              {/* Mobile Hamburger */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="md:hidden text-slate-300 hover:text-white"
+              >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+              </button>
+              <h1 className="text-lg md:text-xl font-bold text-white neon-text">Lumbago <span className="text-lumbago-secondary hidden xs:inline">Music AI</span></h1>
           </div>
           <div className="flex items-center gap-2">
-              <button onClick={() => setModalState({ type: 'settings' })} className="p-2 text-slate-400 hover:text-white">Settings</button>
+              <button onClick={() => setModalState({ type: 'settings' })} className="p-2 text-slate-400 hover:text-white rounded-full hover:bg-white/10 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" /></svg>
+              </button>
           </div>
       </div>
   );
@@ -522,18 +550,18 @@ const App: React.FC = () => {
                   sortedFiles={sortedFiles}
                   selectedFiles={selectedFiles}
                   allFilesSelected={selectedFiles.length === filesForView.length && filesForView.length > 0}
-                  isBatchAnalyzing={false} // Add state if needed
+                  isBatchAnalyzing={false} 
                   isSaving={false}
                   directoryHandle={directoryHandle}
                   isRestored={false}
                   onToggleSelectAll={handleToggleSelectAll}
                   onBatchAnalyze={handleBatchAnalyze}
                   onBatchAnalyzeAll={() => handleBatchAnalyze(files)}
-                  onDownloadOrSave={() => alert("Not implemented in this view snippet")}
+                  onDownloadOrSave={() => alert("Funkcja pobierania dostępna w edycji masowej.")}
                   onBatchEdit={() => setModalState({ type: 'batch-edit' })}
                   onSingleItemEdit={(id) => setModalState({ type: 'edit', fileId: id })}
                   onRename={() => setModalState({ type: 'rename' })}
-                  onExportCsv={() => { const csv = exportFilesToCsv(files); /* ... save csv */ }}
+                  onExportCsv={() => { const csv = exportFilesToCsv(files); console.log(csv); }}
                   onDeleteItem={handleDelete}
                   onClearAll={() => setFiles([])}
                   onProcessFile={(f) => handleBatchAnalyze([f])}
@@ -553,7 +581,6 @@ const App: React.FC = () => {
           break;
   }
 
-  // File used for rename preview
   const filesForRenamePreview = modalState.type === 'rename' ? (selectedFiles.length > 0 ? selectedFiles : (files.length > 0 ? [files[0]] : [])) : [];
 
   return (
@@ -564,11 +591,14 @@ const App: React.FC = () => {
           content={content}
           player={player}
           activeView={activeView}
+          isSidebarCollapsed={isSidebarCollapsed}
+          isMobileMenuOpen={isMobileMenuOpen}
+          onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
       />
       
       {/* Modals */}
       {modalState.type === 'settings' && <SettingsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={handleSaveSettings} currentKeys={apiKeys} currentProvider={aiProvider} />}
-      {modalState.type === 'edit' && modalFile && <EditTagsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={(tags) => handleSaveTags(modalFile.id, tags)} onApply={(tags) => handleApplyTags(modalFile.id, tags)} isApplying={modalFile.state === ProcessingState.DOWNLOADING} isDirectAccessMode={!!directoryHandle} file={modalFile} onManualSearch={handleManualSearch} onZoomCover={(imageUrl) => setModalState({ type: 'zoom-cover', imageUrl })} />}
+      {modalState.type === 'edit' && modalFile && <EditTagsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={(tags) => handleSaveTags(modalFile.id, tags)} onApply={(tags) => handleApplyTags(modalFile.id, tags)} isApplying={modalFile.state === ProcessingState.DOWNLOADING} isDirectAccessMode={!!directoryHandle} file={modalFile} onManualSearch={(query) => handleManualSearch(query, modalFile).then(tags => handleSaveTags(modalFile.id, tags))} onZoomCover={(imageUrl) => setModalState({ type: 'zoom-cover', imageUrl })} />}
       {modalState.type === 'inspect' && modalFile && <FileDetailsModal isOpen={true} onClose={() => setModalState({ type: 'none' })} file={modalFile} onRecognizeAudio={() => setModalState({ type: 'audio-recognizer', fileId: modalFile.id })} />}
       {modalState.type === 'rename' && <RenameModal isOpen={true} onClose={() => setModalState({ type: 'none' })} onSave={handleSaveRenamePattern} currentPattern={renamePattern} files={filesForRenamePreview} />}
       {modalState.type === 'delete' && <ConfirmationModal isOpen={true} onCancel={() => setModalState({ type: 'none' })} onConfirm={() => { if (typeof modalState.fileId === 'string') handleDelete(modalState.fileId); }} title="Potwierdź usunięcie">{`Czy na pewno chcesz usunąć pliki?`}</ConfirmationModal>}

@@ -29,6 +29,14 @@ export interface ID3Tags {
   initialKey?: string;
 }
 
+export interface MetadataHealth {
+  score: number; // 0-100
+  rating: 'Bad' | 'Average' | 'Good' | 'Perfect';
+  missingFields: string[];
+  issues: string[];
+  color: string; // Hex color for UI
+}
+
 export interface AudioFile {
   id: string;
   file: File;
@@ -37,12 +45,13 @@ export interface AudioFile {
   fetchedTags?: ID3Tags;
   newName?: string;
   isSelected?: boolean;
-  isFavorite?: boolean; // Nowe pole
+  isFavorite?: boolean; 
   errorMessage?: string;
   dateAdded: number;
   handle?: any; // FileSystemFileHandle for direct saving
-  webkitRelativePath?: string; // The relative path of the file within the directory
-  duration?: number; // Duration in seconds
+  webkitRelativePath?: string; 
+  duration?: number;
+  health?: MetadataHealth; // Nowe pole: Wynik analizy wstępnej (Pre-Scan)
 }
 
 export interface Playlist {
@@ -61,7 +70,7 @@ export interface SmartPlaylistRule {
   field: SmartPlaylistField;
   operator: SmartPlaylistRuleOperator;
   value: string;
-  value2?: string; // For 'between'
+  value2?: string; 
 }
 
 export interface SmartPlaylist {
@@ -74,7 +83,6 @@ export interface SmartPlaylist {
 
 export type GroupKey = 'artist' | 'album' | 'none';
 
-// Extended sort keys for column sorting
 export type SortKey = 
   | 'dateAdded' 
   | 'originalName' 
@@ -86,4 +94,14 @@ export type SortKey =
   | 'bpm'
   | 'key'
   | 'year'
-  | 'genre';
+  | 'genre'
+  | 'health'; // Dodano sortowanie po zdrowiu
+
+export interface ColumnDef {
+  id: string;
+  label: string;
+  width: number;
+  minWidth: number;
+  sortKey?: SortKey;
+  isFlexible?: boolean; 
+}

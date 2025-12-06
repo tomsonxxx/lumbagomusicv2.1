@@ -1,5 +1,0 @@
-{
-  "tests/test_api_tracks.py": true,
-  "tests/test_library_api.py": true,
-  "tests/test_main.py": true
-}

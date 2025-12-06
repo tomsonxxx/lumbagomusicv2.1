@@ -1,11 +1,10 @@
 
-import React, { useState, useMemo } from 'react';
-import { AudioFile, ProcessingState, ID3Tags } from '../types';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { AudioFile, ProcessingState, ID3Tags, ColumnDef, SortKey } from '../types';
 import HeaderToolbar from './HeaderToolbar';
 import FileListItem from './FileListItem';
 import FileGridItem from './FileGridItem';
 import FilterSidebar from './FilterSidebar';
-import { SortKey } from '../utils/sortingUtils';
 
 interface LibraryTabProps {
   files: AudioFile[];
@@ -44,29 +43,59 @@ interface LibraryTabProps {
   onSortChange?: (key: SortKey) => void;
 }
 
+const DEFAULT_COLUMNS: ColumnDef[] = [
+    { id: 'health', label: 'Jakość', width: 50, minWidth: 40, sortKey: 'health' }, // Nowa kolumna
+    { id: 'title', label: 'Utwór', width: 250, minWidth: 150, sortKey: 'title', isFlexible: true },
+    { id: 'artist', label: 'Artysta', width: 180, minWidth: 100, sortKey: 'artist', isFlexible: true },
+    { id: 'album', label: 'Album', width: 150, minWidth: 100, sortKey: 'album', isFlexible: true },
+    { id: 'bpm', label: 'BPM', width: 50, minWidth: 40, sortKey: 'bpm' },
+    { id: 'key', label: 'Key', width: 50, minWidth: 40, sortKey: 'key' },
+    { id: 'genre', label: 'Gatunek', width: 80, minWidth: 60, sortKey: 'genre' },
+    { id: 'year', label: 'Rok', width: 50, minWidth: 40, sortKey: 'year' },
+];
+
 const SortableHeader: React.FC<{ 
-    label: string; 
-    sortKey: SortKey; 
+    column: ColumnDef;
     currentKey?: SortKey; 
     direction?: 'asc' | 'desc'; 
     onClick?: (key: SortKey) => void;
+    onResizeStart: (e: React.MouseEvent, colId: string) => void;
+    onDragStart: (e: React.DragEvent, colIndex: number) => void;
+    onDragOver: (e: React.DragEvent, colIndex: number) => void;
+    onDrop: (e: React.DragEvent, colIndex: number) => void;
+    index: number;
     className?: string; 
-    alignRight?: boolean;
-}> = ({ label, sortKey, currentKey, direction, onClick, className, alignRight }) => {
-    const isActive = currentKey === sortKey;
+}> = ({ column, currentKey, direction, onClick, onResizeStart, onDragStart, onDragOver, onDrop, index, className }) => {
+    const isActive = currentKey === column.sortKey;
+    
     return (
         <div 
-            className={`flex items-center cursor-pointer group hover:text-white transition-colors py-2 px-2 font-bold text-[10px] uppercase tracking-wider text-slate-500 select-none ${alignRight ? 'justify-end' : ''} ${className}`}
-            onClick={() => onClick && onClick(sortKey)}
+            className={`relative flex items-center group hover:bg-white/5 transition-colors py-1.5 px-2 font-bold text-[9px] uppercase tracking-wider text-slate-500 select-none ${className}`}
+            draggable
+            onDragStart={(e) => onDragStart(e, index)}
+            onDragOver={(e) => onDragOver(e, index)}
+            onDrop={(e) => onDrop(e, index)}
         >
-            <span className="truncate">{label}</span>
-            <div className={`ml-1 w-3 flex flex-col items-center transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
-                {isActive && (
-                    direction === 'asc' 
-                    ? <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                    : <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                )}
+            <div 
+                className="flex-grow flex items-center cursor-pointer overflow-hidden"
+                onClick={() => column.sortKey && onClick && onClick(column.sortKey)}
+            >
+                <span className="truncate">{column.label}</span>
+                <div className={`ml-1 w-3 flex flex-col items-center transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                    {isActive && (
+                        direction === 'asc' 
+                        ? <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                        : <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    )}
+                </div>
             </div>
+            
+            {/* Resize Handle */}
+            <div 
+                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/50 z-10"
+                onMouseDown={(e) => onResizeStart(e, column.id)}
+                onClick={(e) => e.stopPropagation()}
+            />
         </div>
     );
 };
@@ -84,6 +113,62 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
       year: null,
       status: null
   });
+
+  // Column State
+  const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+  const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
+
+  // Resize Logic
+  const handleResizeStart = (e: React.MouseEvent, colId: string) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const colIndex = columns.findIndex(c => c.id === colId);
+      const startWidth = columns[colIndex].width;
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+          const diff = moveEvent.clientX - startX;
+          const newWidth = Math.max(columns[colIndex].minWidth, startWidth + diff);
+          
+          setColumns(prev => {
+              const next = [...prev];
+              next[colIndex] = { ...next[colIndex], width: newWidth, isFlexible: false }; // Disable flex on manual resize
+              return next;
+          });
+      };
+
+      const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+          document.body.style.cursor = 'default';
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+  };
+
+  // Drag & Drop Logic
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+      setDraggedColumnIndex(index);
+      e.dataTransfer.effectAllowed = 'move';
+      // Optional: Set custom drag image
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+      e.preventDefault(); // Necessary to allow dropping
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+      e.preventDefault();
+      if (draggedColumnIndex === null || draggedColumnIndex === index) return;
+
+      const newColumns = [...columns];
+      const [removed] = newColumns.splice(draggedColumnIndex, 1);
+      newColumns.splice(index, 0, removed);
+      setColumns(newColumns);
+      setDraggedColumnIndex(null);
+  };
 
   const filteredFiles = useMemo(() => {
     let result = props.sortedFiles;
@@ -137,6 +222,13 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
       if (props.onSortChange) props.onSortChange(key);
   };
 
+  // --- DYNAMIC GRID STYLE ---
+  // Checkbox (30px) | Status (40px) | ...Dynamic Cols... | Actions (90px) | Expand (30px)
+  const gridTemplate = useMemo(() => {
+      const colSizes = columns.map(c => c.isFlexible ? `minmax(${c.minWidth}px, ${c.width}fr)` : `${c.width}px`).join(' ');
+      return `30px 40px ${colSizes} 90px 30px`;
+  }, [columns]);
+
   if (props.files.length === 0) {
     return (
       <div className="text-center p-10 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 animate-fade-in mt-10">
@@ -154,9 +246,6 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
     );
   }
 
-  // --- STRICT GRID SYSTEM CONFIGURATION ---
-  const gridTemplate = "grid-cols-[30px_40px_minmax(200px,4fr)_minmax(120px,3fr)_minmax(120px,3fr)_50px_50px_80px_90px_30px]";
-
   return (
     <div className="relative flex flex-col h-full">
        {props.isRestored && (
@@ -166,13 +255,8 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
             </div>
         )}
 
-      {/* 
-          --- COMBINED STICKY HEADER BLOCK ---
-          Wrapping Toolbar and List Header in one sticky block.
-          Using negative margins (-mx-4 -mt-4) to counteract the Layout's padding
-          and force the header to the very top of the scrollable viewport.
-      */}
-      <div className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-lumbago-border shadow-xl -mx-4 -mt-4 pt-4 px-4">
+      {/* STICKY HEADER BLOCK */}
+      <div className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-lumbago-border shadow-xl -mx-4 -mt-4 pt-2 px-4">
           <HeaderToolbar
             totalCount={props.files.length}
             selectedCount={props.selectedFiles.length}
@@ -199,22 +283,37 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
             showFilters={showFilters}
           />
           
-          {/* List Header - Only visible in list view, part of sticky block */}
+          {/* List Header - Only visible in list view */}
           {viewMode === 'list' && (
-              <div className={`hidden md:grid ${gridTemplate} gap-2 px-2 pb-1 text-[10px] mt-2 border-t border-white/5 pt-1`}>
-                    <div className="flex items-center justify-center py-2">
+              <div 
+                className="hidden md:grid gap-2 px-2 pb-0 text-[10px] mt-0 select-none"
+                style={{ gridTemplateColumns: gridTemplate }}
+              >
+                    <div className="flex items-center justify-center py-1.5 border-r border-white/5">
                         <input type="checkbox" checked={props.allFilesSelected} onChange={props.onToggleSelectAll} className="h-3 w-3 rounded bg-slate-800 border-slate-600 text-lumbago-secondary focus:ring-0 cursor-pointer" />
                     </div>
                     
-                    <SortableHeader label="St" sortKey="state" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} className="border-r border-white/5 justify-center" />
-                    <SortableHeader label="Utwór" sortKey="title" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Artysta" sortKey="artist" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Album" sortKey="album" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="BPM" sortKey="bpm" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Key" sortKey="key" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Gatunek" sortKey="genre" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <div className="flex items-center justify-center py-1.5 border-r border-white/5">
+                        <span className="text-slate-500 font-bold">ST</span>
+                    </div>
                     
-                    <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right py-2 pr-2 flex items-center justify-end">Akcje</div>
+                    {columns.map((col, index) => (
+                        <SortableHeader 
+                            key={col.id}
+                            index={index}
+                            column={col}
+                            currentKey={props.currentSortKey} 
+                            direction={props.currentSortDirection} 
+                            onClick={handleSort}
+                            onResizeStart={handleResizeStart}
+                            onDragStart={handleDragStart}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            className="border-r border-white/5 last:border-0"
+                        />
+                    ))}
+                    
+                    <div className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right py-1.5 pr-2 flex items-center justify-end">Akcje</div>
                     {/* Empty cell for expand button */}
                     <div></div> 
               </div>
@@ -256,8 +355,9 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
                             // Actions
                             onToggleFavorite={props.onToggleFavorite}
                             onAddToPlaylist={props.onAddToPlaylist}
-                            // Layout Injection
-                            gridClass={gridTemplate}
+                            // Layout Injection - Pass Dynamic Config
+                            gridTemplate={gridTemplate}
+                            columns={columns}
                         />
                     ))}
                 </div>

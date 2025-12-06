@@ -1,65 +1,18 @@
 
 import { AudioFile, ID3Tags } from '../types';
-
-// Mapowanie kluczy Camelot na współrzędne (koło godzinowe)
-// Format: "8A" -> { hour: 8, letter: 'A' }
-const parseCamelot = (key: string): { hour: number, letter: string } | null => {
-    const match = key.match(/^(\d+)([AB])$/i);
-    if (!match) return null;
-    return { hour: parseInt(match[1]), letter: match[2].toUpperCase() };
-};
-
-/**
- * Oblicza kompatybilność harmoniczną (0.0 - 1.0)
- * 1.0 = Ten sam klucz lub relatywny (8A <-> 8B)
- * 0.9 = Dominanta/Subdominanta (8A <-> 9A, 7A)
- * 0.5 = Dalsze (kompatybilne w miksie energetycznym)
- * 0.0 = Disharmonia
- */
-const calculateHarmonicScore = (key1?: string, key2?: string): number => {
-    if (!key1 || !key2) return 0;
-    
-    const k1 = parseCamelot(key1);
-    const k2 = parseCamelot(key2);
-    
-    if (!k1 || !k2) {
-        // Fallback dla zwykłych tekstów (np. Am == Am)
-        return key1 === key2 ? 1 : 0;
-    }
-
-    if (k1.hour === k2.hour && k1.letter === k2.letter) return 1.0; // Perfect match
-    if (k1.hour === k2.hour && k1.letter !== k2.letter) return 0.95; // Relative Major/Minor (8A - 8B)
-    
-    const hourDiff = Math.abs(k1.hour - k2.hour);
-    const distance = Math.min(hourDiff, 12 - hourDiff); // Odległość na kole (max 6)
-
-    if (distance === 1 && k1.letter === k2.letter) return 0.9; // Adjacent (8A - 9A)
-    if (distance === 1 && k1.letter !== k2.letter) return 0.7; // Diagonal (8A - 9B) - Energy boost mix
-    if (distance === 2) return 0.3; 
-    
-    return 0; 
-};
+import { analyzeTransition } from './harmonicUtils';
 
 /**
  * Oblicza podobieństwo BPM (0.0 - 1.0)
- * 1.0 = Idealne
- * 0.0 = Różnica > 15%
  */
 const calculateBpmScore = (bpm1?: number, bpm2?: number): number => {
     if (!bpm1 || !bpm2) return 0;
-    
     const diff = Math.abs(bpm1 - bpm2);
     const percentage = diff / bpm1;
-    
-    if (percentage > 0.15) return 0; // Za daleko do zmiksowania
-    
-    // Linearny spadek od 1.0 do 0.0 przy 15% różnicy
+    if (percentage > 0.15) return 0; 
     return 1.0 - (percentage / 0.15); 
 };
 
-/**
- * Główna funkcja rekomendacji
- */
 export interface RecommendationResult {
     file: AudioFile;
     score: number;
@@ -68,7 +21,7 @@ export interface RecommendationResult {
         key: boolean;
         genre: boolean;
     };
-    details: string;
+    harmonicDetails?: string; // Info o przejściu
 }
 
 export interface SimilarityWeights {
@@ -95,7 +48,7 @@ export const findSimilarTracks = (
     };
 
     const results = library
-        .filter(f => f.id !== seedTrack.id) // Wyklucz siebie
+        .filter(f => f.id !== seedTrack.id) 
         .map(target => {
             const targetTags = target.fetchedTags || target.originalTags;
             let score = 0;
@@ -106,12 +59,19 @@ export const findSimilarTracks = (
             score += bpmScore * w.bpm;
             if (bpmScore > 0.8) matches.bpm = true;
 
-            // 2. Key Score
-            const keyScore = calculateHarmonicScore(seedTags.initialKey, targetTags.initialKey);
+            // 2. Key Score (Updated using harmonicUtils)
+            let harmonicInfo = '';
+            let keyScore = 0;
+            if (seedTags.initialKey && targetTags.initialKey) {
+                const transition = analyzeTransition(seedTags.initialKey, targetTags.initialKey);
+                keyScore = transition.score / 100;
+                harmonicInfo = transition.description;
+            }
+            
             score += keyScore * w.key;
-            if (keyScore > 0.8) matches.key = true;
+            if (keyScore > 0.6) matches.key = true;
 
-            // 3. Genre Score (Simple string contains)
+            // 3. Genre Score
             let genreScore = 0;
             if (seedTags.genre && targetTags.genre) {
                 const g1 = seedTags.genre.toLowerCase();
@@ -122,7 +82,7 @@ export const findSimilarTracks = (
             score += genreScore * w.genre;
             if (genreScore > 0.7) matches.genre = true;
 
-            // 4. Year Score (Decade / Close years)
+            // 4. Year Score
             let yearScore = 0;
             if (seedTags.year && targetTags.year) {
                 const y1 = parseInt(seedTags.year);
@@ -138,13 +98,13 @@ export const findSimilarTracks = (
 
             return {
                 file: target,
-                score: score * 100, // Procenty
+                score: score * 100,
                 matches,
-                details: `${Math.round(bpmScore*100)}% BPM match, ${Math.round(keyScore*100)}% Harmonic`
+                harmonicDetails: harmonicInfo
             };
         })
-        .filter(r => r.score > 30) // Odrzuć słabe dopasowania
+        .filter(r => r.score > 30)
         .sort((a, b) => b.score - a.score);
 
-    return results.slice(0, 50); // Zwróć top 50
+    return results.slice(0, 50);
 };

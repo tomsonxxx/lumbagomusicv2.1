@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, Suspense } from 'react';
-import { AudioFile, ProcessingState } from '../types';
+import { AudioFile, ProcessingState, ColumnDef } from '../types';
 import { StatusIcon } from './StatusIcon';
 import AlbumCover from './AlbumCover';
 import MiniAudioVisualizer from './MiniAudioVisualizer';
@@ -23,8 +23,9 @@ interface FileListItemProps {
   // Playlist & Favs
   onToggleFavorite: (fileId: string) => void;
   onAddToPlaylist: (fileId: string) => void;
-  // Layout Prop (Grid Configuration from Parent)
-  gridClass?: string; 
+  // Dynamic Layout Props
+  gridTemplate?: string;
+  columns?: ColumnDef[];
 }
 
 const usePrevious = <T,>(value: T): T | undefined => {
@@ -47,7 +48,8 @@ const FileListItem: React.FC<FileListItemProps> = ({
   onInspect,
   onToggleFavorite,
   onAddToPlaylist,
-  gridClass
+  gridTemplate,
+  columns
 }) => {
   const [isExiting, setIsExiting] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -63,7 +65,6 @@ const FileListItem: React.FC<FileListItemProps> = ({
   const displayTags = file.fetchedTags || file.originalTags;
   const displayName = file.newName || file.file.name;
   
-  // Flash Animation Logic
   useEffect(() => {
     const element = itemRef.current;
     if (!element) return;
@@ -106,8 +107,8 @@ const FileListItem: React.FC<FileListItemProps> = ({
       setIsExpanded(!isExpanded);
   };
 
-  // --- Dynamic Styling ---
-  let stateClasses = "hover:bg-slate-800 transition-colors bg-slate-900/20"; // Subtle zebra default via parent divide
+  // Base backgrounds
+  let stateClasses = "hover:bg-slate-800 transition-colors bg-slate-900/20"; 
 
   if (isProcessing) {
     stateClasses = "bg-gradient-to-r from-transparent via-indigo-900/20 to-transparent animate-gradient-loading border-b border-indigo-500/20";
@@ -117,29 +118,157 @@ const FileListItem: React.FC<FileListItemProps> = ({
     stateClasses = "!bg-indigo-900/20";
   }
 
-  // --- Main Container Class ---
-  // Using flex for mobile (fallback) and the passed gridClass for desktop strict alignment
+  // Flex for Mobile, Grid for Desktop
   const containerClasses = [
-      "relative group text-xs min-h-[40px] flex md:grid items-center gap-2", 
+      "relative group text-xs min-h-[40px] flex md:grid items-center gap-2 px-2", 
       stateClasses,
       isExiting ? 'animate-fade-out' : '',
-      gridClass ? `${gridClass} px-2` : "px-2"
   ].join(' ');
 
+  // Helper to render specific cell types based on column config
+  const renderCell = (col: ColumnDef) => {
+      switch(col.id) {
+          case 'health':
+              return (
+                  <div key={col.id} className="hidden md:flex justify-center items-center">
+                      {file.health && (
+                          <div 
+                            className="w-8 h-1.5 rounded-full bg-slate-700 overflow-hidden" 
+                            title={`Jakość metadanych: ${file.health.score}% (${file.health.rating})\nBrakujące: ${file.health.missingFields.join(', ') || 'Brak'}`}
+                          >
+                              <div 
+                                className="h-full rounded-full" 
+                                style={{ width: `${file.health.score}%`, backgroundColor: file.health.color }}
+                              ></div>
+                          </div>
+                      )}
+                  </div>
+              );
+          case 'title':
+              return (
+                <div key={col.id} className="flex items-center gap-2 overflow-hidden flex-grow md:flex-grow-0 min-w-0">
+                    <div className="relative group/cover flex-shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+                        <div className="relative flex items-center">
+                            <AlbumCover tags={displayTags} className="w-7 h-7 rounded shadow-sm border border-white/5" />
+                            <button 
+                                onClick={onPlayPause} 
+                                className={`absolute inset-0 flex items-center justify-center bg-black/50 rounded transition-opacity ${isActive || isPlaying ? 'opacity-100' : 'opacity-0 group-hover/cover:opacity-100'}`}
+                            >
+                                {isPlaying ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                                )}
+                            </button>
+                        </div>
+                        {hasFetchedTags && isHovered && (
+                            <Suspense fallback={null}>
+                                <TagPreviewTooltip originalTags={file.originalTags} fetchedTags={file.fetchedTags} />
+                            </Suspense>
+                        )}
+                    </div>
+
+                    <div className="min-w-0 flex flex-col justify-center">
+                        <div className="flex items-center gap-1.5">
+                            <span 
+                                className={`font-medium text-xs truncate cursor-pointer hover:text-lumbago-primary transition-colors leading-tight ${isActive ? 'text-lumbago-primary neon-text' : 'text-slate-200'}`} 
+                                title={displayName} 
+                                onClick={onPlayPause}
+                                onDoubleClick={toggleExpand}
+                            >
+                                {displayName}
+                            </span>
+                            
+                            <button 
+                                onClick={() => onToggleFavorite(file.id)}
+                                className={`transition-colors ${file.isFavorite ? 'text-lumbago-secondary' : 'text-slate-600 hover:text-lumbago-secondary opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                            </button>
+                        </div>
+                        <div className="md:hidden text-[10px] text-slate-500 truncate">{displayTags?.artist}</div>
+                    </div>
+                </div>
+              );
+          case 'artist':
+              return (
+                  <div key={col.id} className="hidden md:block truncate text-[11px] text-slate-300" title={displayTags?.artist}>
+                      {displayTags?.artist || '-'}
+                  </div>
+              );
+          case 'album':
+              return (
+                  <div key={col.id} className="hidden md:block truncate text-[11px] text-slate-500 italic" title={displayTags?.album}>
+                      {displayTags?.album || '-'}
+                  </div>
+              );
+          case 'bpm':
+              return (
+                  <div key={col.id} className="hidden md:block truncate">
+                      {displayTags?.bpm ? (
+                          <span className="inline-block bg-cyan-950/40 text-cyan-300 px-1.5 py-px rounded border border-cyan-900/30 text-[9px] font-bold font-mono">
+                              {displayTags.bpm}
+                          </span>
+                      ) : (
+                          <span className="text-slate-700 text-[9px]">-</span>
+                      )}
+                  </div>
+              );
+          case 'key':
+              return (
+                  <div key={col.id} className="hidden md:block truncate">
+                      {displayTags?.initialKey ? (
+                          <span className="inline-block bg-purple-950/40 text-purple-300 px-1.5 py-px rounded border border-purple-900/30 text-[9px] font-bold font-mono">
+                              {displayTags.initialKey}
+                          </span>
+                      ) : (
+                          <span className="text-slate-700 text-[9px]">-</span>
+                      )}
+                  </div>
+              );
+          case 'genre':
+              return (
+                  <div key={col.id} className="hidden md:block truncate text-[9px]">
+                      {displayTags?.genre ? (
+                          <span className="bg-slate-800 text-slate-400 px-1.5 py-px rounded border border-slate-700/50 truncate max-w-[70px] inline-block align-middle" title={displayTags.genre}>
+                              {displayTags.genre}
+                          </span>
+                      ) : (
+                          <span className="text-slate-700">-</span>
+                      )}
+                  </div>
+              );
+          case 'year':
+              return (
+                  <div key={col.id} className="hidden md:block truncate text-[9px] text-slate-500 font-mono">
+                      {displayTags?.year || '-'}
+                  </div>
+              );
+          default:
+              return <div key={col.id}></div>;
+      }
+  }
+
   return (
-    <div ref={itemRef} className={containerClasses} draggable onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', JSON.stringify([file.id]));
-        e.dataTransfer.effectAllowed = 'copyMove';
-    }}>
+    <div 
+        ref={itemRef} 
+        className={containerClasses} 
+        style={gridTemplate ? { gridTemplateColumns: gridTemplate } : undefined}
+        draggable 
+        onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify([file.id]));
+            e.dataTransfer.effectAllowed = 'copyMove';
+        }}
+    >
       
-      {/* Processing Bar Overlay */}
+      {/* Progress Bar for Processing */}
       {isProcessing && (
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-indigo-900/50 z-20">
            <div className="h-full bg-lumbago-primary animate-indeterminate-bar"></div>
         </div>
       )}
 
-      {/* 1. CHECKBOX */}
+      {/* --- Checkbox Column (Fixed) --- */}
       <div className="flex items-center justify-center">
           <input 
             type="checkbox"
@@ -149,7 +278,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
           />
       </div>
 
-      {/* 2. STATUS / VISUALIZER */}
+      {/* --- Status / Visualizer Column (Fixed) --- */}
       <div className="hidden md:flex justify-center items-center w-full border-r border-white/5 h-6">
          {isActive ? (
              <div className="h-3 w-5 flex items-end justify-center pb-0.5">
@@ -166,96 +295,20 @@ const FileListItem: React.FC<FileListItemProps> = ({
          )}
       </div>
 
-      {/* 3. TITLE & COVER (Flex grow on mobile) */}
-      <div className="flex items-center gap-2 overflow-hidden flex-grow md:flex-grow-0 min-w-0">
-          <div className="relative group/cover flex-shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-             <div className="relative flex items-center">
-                <AlbumCover tags={displayTags} className="w-7 h-7 rounded shadow-sm border border-white/5" />
-                <button 
-                    onClick={onPlayPause} 
-                    className={`absolute inset-0 flex items-center justify-center bg-black/50 rounded transition-opacity ${isActive || isPlaying ? 'opacity-100' : 'opacity-0 group-hover/cover:opacity-100'}`}
-                >
-                    {isPlaying ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
-                    )}
-                </button>
-             </div>
-             {hasFetchedTags && isHovered && (
-                <Suspense fallback={null}>
-                    <TagPreviewTooltip originalTags={file.originalTags} fetchedTags={file.fetchedTags} />
-                </Suspense>
-            )}
-          </div>
+      {/* --- DYNAMIC COLUMNS --- */}
+      {columns ? columns.map(col => renderCell(col)) : (
+          // Fallback if no columns prop passed (e.g. mobile or old usage)
+          <>
+             {renderCell({ id: 'title', label: '', width: 0, minWidth: 0 })}
+             {renderCell({ id: 'artist', label: '', width: 0, minWidth: 0 })}
+             {renderCell({ id: 'album', label: '', width: 0, minWidth: 0 })}
+             {renderCell({ id: 'bpm', label: '', width: 0, minWidth: 0 })}
+             {renderCell({ id: 'key', label: '', width: 0, minWidth: 0 })}
+             {renderCell({ id: 'genre', label: '', width: 0, minWidth: 0 })}
+          </>
+      )}
 
-          <div className="min-w-0 flex flex-col justify-center">
-             <div className="flex items-center gap-1.5">
-                <span 
-                    className={`font-medium text-xs truncate cursor-pointer hover:text-lumbago-primary transition-colors leading-tight ${isActive ? 'text-lumbago-primary neon-text' : 'text-slate-200'}`} 
-                    title={displayName} 
-                    onClick={onPlayPause}
-                    onDoubleClick={toggleExpand}
-                >
-                    {displayName}
-                </span>
-                
-                <button 
-                    onClick={() => onToggleFavorite(file.id)}
-                    className={`transition-colors ${file.isFavorite ? 'text-lumbago-secondary' : 'text-slate-600 hover:text-lumbago-secondary opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
-                </button>
-             </div>
-             {/* Mobile: Artist under title */}
-             <div className="md:hidden text-[10px] text-slate-500 truncate">{displayTags?.artist}</div>
-          </div>
-      </div>
-
-      {/* 4. ARTIST */}
-      <div className="hidden md:block truncate text-[11px] text-slate-300" title={displayTags?.artist}>
-          {displayTags?.artist || '-'}
-      </div>
-
-      {/* 5. ALBUM */}
-      <div className="hidden md:block truncate text-[11px] text-slate-500 italic" title={displayTags?.album}>
-          {displayTags?.album || '-'}
-      </div>
-
-      {/* 6. BPM (Badge) */}
-      <div className="hidden md:block truncate">
-          {displayTags?.bpm ? (
-              <span className="inline-block bg-cyan-950/40 text-cyan-300 px-1.5 py-px rounded border border-cyan-900/30 text-[9px] font-bold font-mono">
-                  {displayTags.bpm}
-              </span>
-          ) : (
-              <span className="text-slate-700 text-[9px]">-</span>
-          )}
-      </div>
-
-      {/* 7. KEY (Badge) */}
-      <div className="hidden md:block truncate">
-          {displayTags?.initialKey ? (
-              <span className="inline-block bg-purple-950/40 text-purple-300 px-1.5 py-px rounded border border-purple-900/30 text-[9px] font-bold font-mono">
-                  {displayTags.initialKey}
-              </span>
-          ) : (
-              <span className="text-slate-700 text-[9px]">-</span>
-          )}
-      </div>
-
-      {/* 8. GENRE (Badge) */}
-      <div className="hidden md:block truncate text-[9px]">
-          {displayTags?.genre ? (
-              <span className="bg-slate-800 text-slate-400 px-1.5 py-px rounded border border-slate-700/50 truncate max-w-[70px] inline-block align-middle" title={displayTags.genre}>
-                  {displayTags.genre}
-              </span>
-          ) : (
-              <span className="text-slate-700">-</span>
-          )}
-      </div>
-
-      {/* 9. ACTIONS */}
+      {/* --- Actions Column (Fixed) --- */}
       <div className="hidden md:flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
          <button onClick={() => onAddToPlaylist(file.id)} className="p-1 rounded hover:bg-lumbago-primary hover:text-black text-slate-500 transition-colors" title="Dodaj do playlisty">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
@@ -271,7 +324,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
          </button>
       </div>
 
-      {/* 10. EXPAND TOGGLE */}
+      {/* --- Expand Button Column (Fixed) --- */}
       <div className="flex items-center justify-center ml-auto md:ml-0">
           <button 
             onClick={toggleExpand}

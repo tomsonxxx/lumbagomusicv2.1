@@ -42,7 +42,7 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioContextClass();
       const analyserNode = ctx.createAnalyser();
-      analyserNode.fftSize = 512; // Increased for better resolution
+      analyserNode.fftSize = 512; 
       analyserNode.smoothingTimeConstant = 0.8;
       
       const source = ctx.createMediaElementSource(audioRef.current);
@@ -114,7 +114,7 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
   const progressPercent = duration ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className="w-full h-full flex items-center px-6 relative animate-slide-up overflow-hidden">
+    <div className="w-full h-full flex flex-col md:flex-row items-center px-4 md:px-6 relative animate-slide-up overflow-hidden pb-safe md:pb-0">
       <audio
         ref={audioRef}
         onTimeUpdate={handleTimeUpdate}
@@ -122,7 +122,6 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
         onLoadedMetadata={handleTimeUpdate}
       />
       
-      {/* Background glow behind player */}
       <div className="absolute inset-0 bg-lumbago-primary/5 blur-3xl pointer-events-none"></div>
 
       {/* LASER Progress Bar */}
@@ -134,7 +133,6 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
               audioRef.current.currentTime = pct * duration;
           }
       }}>
-          {/* Laser Glow */}
           <div 
             className="h-full bg-cyan-400 relative shadow-[0_0_10px_#22d3ee,0_0_20px_#22d3ee]"
             style={{ width: `${progressPercent}%` }}
@@ -143,56 +141,56 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
           </div>
       </div>
 
-      {/* Info & Cover */}
-      <div className="flex items-center w-1/4 min-w-[250px] gap-4 z-10">
-         <div className="relative group perspective-500">
+      {/* Info & Cover (Compact on Mobile) */}
+      <div className="flex items-center w-full md:w-1/4 min-w-0 gap-3 md:gap-4 z-10 pt-3 md:pt-0">
+         <div className="relative group perspective-500 flex-shrink-0">
             <div className={`transition-all duration-1000 ${isPlaying ? 'animate-pulse-shadow' : ''}`}>
-                <AlbumCover tags={displayTags} className="w-14 h-14 rounded-lg border border-white/20" />
+                <AlbumCover tags={displayTags} className="w-10 h-10 md:w-14 md:h-14 rounded-lg border border-white/20" />
             </div>
-            <button onClick={onClose} className="absolute -top-2 -right-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md backdrop-blur-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-            </button>
          </div>
-         <div className="flex flex-col min-w-0">
+         <div className="flex flex-col min-w-0 flex-grow">
             <div className="flex items-center gap-2">
-                <span className="font-bold text-white truncate text-sm neon-text tracking-wide">{title}</span>
+                <span className="font-bold text-white truncate text-xs md:text-sm neon-text tracking-wide">{title}</span>
             </div>
-            <span className="text-xs text-cyan-300/80 truncate font-mono">{artist}</span>
+            <span className="text-[10px] md:text-xs text-cyan-300/80 truncate font-mono">{artist}</span>
          </div>
+         
+         {/* Mobile Close Button */}
+         <button onClick={onClose} className="md:hidden text-slate-500 p-2">
+             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+         </button>
       </div>
 
-      {/* Controls - Center */}
-      <div className="flex flex-col items-center flex-grow max-w-xl z-10">
-         <div className="flex items-center gap-8 mb-1">
+      {/* Controls - Center (Expanded on Mobile) */}
+      <div className="flex flex-row items-center justify-between md:justify-center flex-grow w-full md:w-auto md:max-w-xl z-10 mt-2 md:mt-0 px-2 md:px-0">
+         <span className="text-[9px] md:text-[10px] text-cyan-500/50 font-mono w-8 text-left">{formatTime(currentTime)}</span>
+         
+         <div className="flex items-center gap-4 md:gap-8">
             <button onClick={onPrev} className="text-slate-400 hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all transform hover:scale-110">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             
             <button 
               onClick={onPlayPause} 
-              className="w-12 h-12 rounded-full bg-black border border-cyan-500/50 text-cyan-400 flex items-center justify-center hover:bg-cyan-500/10 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-105 transition-all shadow-lg"
+              className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-black border border-cyan-500/50 text-cyan-400 flex items-center justify-center hover:bg-cyan-500/10 hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-105 transition-all shadow-lg"
             >
                {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6 pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                )}
             </button>
 
             <button onClick={onNext} className="text-slate-400 hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all transform hover:scale-110">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
             </button>
          </div>
          
-         <div className="w-full flex items-center justify-between text-[10px] text-cyan-500/50 font-mono mt-1 tracking-widest">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
-         </div>
+         <span className="text-[9px] md:text-[10px] text-cyan-500/50 font-mono w-8 text-right">{formatTime(duration)}</span>
       </div>
 
-      {/* Visualizer & Volume */}
-      <div className="flex items-center w-1/4 justify-end gap-6 pl-4 z-10">
-         {/* Waveform Container */}
+      {/* Visualizer & Volume (Hidden on Mobile) */}
+      <div className="hidden md:flex items-center w-1/4 justify-end gap-6 pl-4 z-10">
          <div className="hidden lg:block w-40 h-12 bg-black/60 rounded border border-white/10 overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] backdrop-blur-md">
             <AudioVisualizer analyser={analyser} isPlaying={isPlaying} />
          </div>
@@ -220,6 +218,10 @@ const GlobalPlayer: React.FC<GlobalPlayerProps> = ({
                  </div>
              </div>
          </div>
+         
+         <button onClick={onClose} className="text-slate-500 hover:text-red-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+         </button>
       </div>
       
       <style>{`

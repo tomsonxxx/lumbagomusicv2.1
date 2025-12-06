@@ -13,6 +13,8 @@ interface LibrarySidebarProps {
   onDownloadPlaylist?: (id: string) => void;
   totalTracks: number;
   favoritesCount: number;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
@@ -25,7 +27,9 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
   onDeletePlaylist,
   onDownloadPlaylist,
   totalTracks,
-  favoritesCount
+  favoritesCount,
+  isCollapsed,
+  onToggleCollapse
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -39,24 +43,28 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
     }
   };
 
+  // Helper for Nav Items
   const NavItem = ({ id, label, icon, count }: { id: string, label: string, icon: React.ReactNode, count?: number }) => {
     const isActive = activeView === id;
+    
     return (
       <button
         onClick={() => onViewChange(id)}
-        className={`w-full flex items-center justify-between px-3 py-1.5 mb-0.5 text-xs rounded-md transition-all duration-200 group ${
+        title={isCollapsed ? label : undefined}
+        className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'justify-between px-3'} py-2 md:py-1.5 mb-0.5 text-xs rounded-md transition-all duration-200 group ${
           isActive
             ? 'bg-lumbago-border/20 text-lumbago-primary border-l-2 border-l-lumbago-primary shadow-[0_0_10px_rgba(142,240,255,0.1)]'
             : 'text-lumbago-text-dim hover:bg-white/5 hover:text-white border-l-2 border-transparent'
         }`}
       >
-        <div className="flex items-center truncate gap-2">
-          <div className={`transform scale-90 ${isActive ? 'text-lumbago-primary drop-shadow-[0_0_5px_rgba(142,240,255,0.8)]' : 'text-slate-400 group-hover:text-white'}`}>
+        <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center w-full' : ''}`}>
+          <div className={`transform ${isCollapsed ? 'scale-110' : 'scale-90'} ${isActive ? 'text-lumbago-primary drop-shadow-[0_0_5px_rgba(142,240,255,0.8)]' : 'text-slate-400 group-hover:text-white'}`}>
             {icon}
           </div>
-          <span className="truncate font-medium pt-0.5">{label}</span>
+          {!isCollapsed && <span className="truncate font-medium pt-0.5">{label}</span>}
         </div>
-        {count !== undefined && (
+        
+        {!isCollapsed && count !== undefined && (
           <span className={`text-[9px] font-bold px-1.5 py-px rounded-full ${
               isActive 
                 ? 'bg-lumbago-primary text-lumbago-dark' 
@@ -72,15 +80,17 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Logo Area */}
-      <div className="p-4 pb-2">
+      <div className={`p-4 pb-2 flex ${isCollapsed ? 'justify-center' : ''}`}>
          <div className="flex items-center gap-2 mb-4">
-            <div className="w-6 h-6 rounded bg-gradient-to-br from-lumbago-primary to-lumbago-secondary shadow-[0_0_10px_rgba(142,240,255,0.5)] flex items-center justify-center">
+            <div className="w-6 h-6 rounded bg-gradient-to-br from-lumbago-primary to-lumbago-secondary shadow-[0_0_10px_rgba(142,240,255,0.5)] flex items-center justify-center flex-shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-lumbago-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
             </div>
-            <div className="flex flex-col">
-                <span className="text-lg font-bold tracking-tight text-lumbago-primary drop-shadow-[0_0_8px_rgba(142,240,255,0.6)] leading-none">Lumbago</span>
-                <span className="text-[8px] tracking-[0.2em] text-lumbago-secondary font-bold uppercase leading-none mt-0.5">Music AI</span>
-            </div>
+            {!isCollapsed && (
+                <div className="flex flex-col animate-fade-in origin-left">
+                    <span className="text-lg font-bold tracking-tight text-lumbago-primary drop-shadow-[0_0_8px_rgba(142,240,255,0.6)] leading-none">Lumbago</span>
+                    <span className="text-[8px] tracking-[0.2em] text-lumbago-secondary font-bold uppercase leading-none mt-0.5">Music AI</span>
+                </div>
+            )}
          </div>
       </div>
 
@@ -88,9 +98,7 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
         
         {/* Biblioteka */}
         <div>
-            <h3 className="px-3 text-[10px] font-bold text-lumbago-primary/80 uppercase tracking-widest mb-1 flex items-center gap-2 opacity-70">
-                Biblioteka
-            </h3>
+            {!isCollapsed && <h3 className="px-3 text-[10px] font-bold text-lumbago-primary/80 uppercase tracking-widest mb-1 flex items-center gap-2 opacity-70">Biblioteka</h3>}
             <NavItem 
                 id="library" 
                 label="Wszystkie utwory" 
@@ -111,7 +119,7 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
         </div>
 
         {/* Playlisty */}
-        <div>
+        <div className={isCollapsed ? 'hidden' : 'block'}>
             <div className="flex items-center justify-between px-3 mb-1">
                 <h3 className="text-[10px] font-bold text-lumbago-secondary/80 uppercase tracking-widest flex items-center gap-2 opacity-70">
                     Playlisty
@@ -172,53 +180,9 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
             </div>
         </div>
 
-        {/* Smart Playlisty */}
-        <div className="mt-2">
-            <div className="flex items-center justify-between px-3 mb-1">
-                <h3 className="text-[10px] font-bold text-lumbago-accent/80 uppercase tracking-widest flex items-center gap-2 opacity-70">
-                    Smart Playlisty
-                </h3>
-                <button onClick={onCreateSmartPlaylist} className="text-lumbago-accent hover:text-white hover:drop-shadow-[0_0_5px_#39ff14] transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
-                </button>
-            </div>
-            
-            <div className="space-y-px">
-                {smartPlaylists.map(playlist => (
-                    <div key={playlist.id} className="group relative">
-                        <button
-                            onClick={() => onViewChange(`smart:${playlist.id}`)}
-                            className={`w-full text-left px-3 py-1.5 text-xs transition-all truncate hover:bg-white/5 rounded-md ${
-                                activeView === `smart:${playlist.id}`
-                                ? 'text-lumbago-accent bg-white/5 border-l-2 border-lumbago-accent pl-[10px]'
-                                : 'text-slate-400 border-l-2 border-transparent pl-[12px]'
-                            }`}
-                        >
-                            <span className="truncate flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                {playlist.name}
-                            </span>
-                        </button>
-                        
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex opacity-0 group-hover:opacity-100 transition-opacity bg-lumbago-dark/80 rounded px-1">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDeletePlaylist(playlist.id, true); }}
-                                className="p-1 text-slate-400 hover:text-red-500 ml-1"
-                                title="Usuń"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-
         {/* Narzędzia */}
-        <div className="mt-2">
-            <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-2 opacity-70">
-                Narzędzia
-            </h3>
+        <div>
+            {!isCollapsed && <h3 className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-2 opacity-70">Narzędzia</h3>}
             <NavItem 
                 id="scan" 
                 label="Skaner / Import" 
@@ -258,10 +222,25 @@ const LibrarySidebar: React.FC<LibrarySidebarProps> = ({
 
       </div>
       
-      {/* Footer Info */}
-      <div className="p-2 text-[9px] text-slate-600 text-center border-t border-slate-800">
-        v2.0 Beta • build 2025.14
+      {/* Collapse Toggle (Desktop only) */}
+      <div className="hidden md:flex p-2 border-t border-slate-800 justify-center">
+          <button 
+            onClick={onToggleCollapse}
+            className="p-1.5 rounded-full text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+            title={isCollapsed ? "Rozwiń" : "Zwiń"}
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 transform transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+              </svg>
+          </button>
       </div>
+      
+      {/* Footer Info (Hidden if collapsed) */}
+      {!isCollapsed && (
+        <div className="p-2 text-[9px] text-slate-600 text-center border-t border-slate-800 md:block hidden">
+            v2.0 Beta • build 2025.14
+        </div>
+      )}
     </div>
   );
 };

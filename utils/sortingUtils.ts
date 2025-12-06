@@ -1,7 +1,4 @@
-
-import { AudioFile, ProcessingState } from '../types';
-
-export type SortKey = 'dateAdded' | 'originalName' | 'newName' | 'state' | 'artist' | 'title' | 'album' | 'bpm' | 'key' | 'year' | 'genre';
+import { AudioFile, ProcessingState, SortKey } from '../types';
 
 const stateOrder: Record<ProcessingState, number> = {
   [ProcessingState.PROCESSING]: 1,
@@ -38,6 +35,11 @@ export const sortFiles = (
         break;
       case 'state':
         comparison = stateOrder[a.state] - stateOrder[b.state];
+        break;
+      case 'health':
+        const healthA = a.health?.score || 0;
+        const healthB = b.health?.score || 0;
+        comparison = healthA - healthB;
         break;
       
       // Metadata sorting

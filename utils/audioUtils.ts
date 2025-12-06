@@ -1,3 +1,4 @@
+
 import { ID3Tags, AudioFile, ProcessingState } from '../types';
 
 // Assume jsmediatags is loaded globally via a <script> tag
