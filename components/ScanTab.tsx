@@ -1,11 +1,10 @@
 
-
 import React from 'react';
 import FileDropzone from './FileDropzone';
 import DirectoryConnect from './DirectoryConnect';
 
 interface ScanTabProps {
-    onFilesSelected: (files: FileList) => void;
+    onFilesSelected: (files: File[] | FileList) => void;
     onUrlSubmitted: (url: string) => Promise<void>;
     onDirectoryConnect: (handle: any) => void;
     isProcessing: boolean;

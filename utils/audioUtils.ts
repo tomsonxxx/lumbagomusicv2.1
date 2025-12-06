@@ -1,3 +1,4 @@
+
 import { ID3Tags, AudioFile, ProcessingState } from '../types';
 
 // Assume jsmediatags is loaded globally via a <script> tag
@@ -48,97 +49,157 @@ export const readID3Tags = (file: File): Promise<ID3Tags> => {
     jsmediatags.read(file, {
       onSuccess: (tag: any) => {
         // jsmediatags attempts to unify tags, so we can check for common properties
-        // regardless of the underlying format (ID3, Vorbis comment, MP4 atoms, etc.)
         const tags: ID3Tags = {};
         const tagData = tag.tags;
 
-        // 1. Basic standardized fields (Library usually handles ID3, MP4 and basic Vorbis mapping)
+        // --- 1. Basic standardized fields ---
+        // jsmediatags usually maps these well for MP3, but sometimes misses for MP4
+        
+        // Title
         if (tagData.title) tags.title = tagData.title;
+        else if (tagData['©nam']) tags.title = tagData['©nam'].data; // MP4 atom
+
+        // Artist
         if (tagData.artist) tags.artist = tagData.artist;
+        else if (tagData['©ART']) tags.artist = tagData['©ART'].data; // MP4 atom
+
+        // Album
         if (tagData.album) tags.album = tagData.album;
+        else if (tagData['©alb']) tags.album = tagData['©alb'].data; // MP4 atom
+
+        // Year
         if (tagData.year) tags.year = tagData.year;
+        else if (tagData['©day']) tags.year = tagData['©day'].data; // MP4 atom
+        else if (tagData.DATE) tags.year = tagData.DATE; // Vorbis/FLAC
+
+        // Genre
         if (tagData.genre) tags.genre = tagData.genre;
+        else if (tagData['©gen']) tags.genre = tagData['©gen'].data; // MP4 atom
 
-        // Vorbis specific fallbacks for basics
-        if (!tags.year && tagData.DATE) tags.year = tagData.DATE; // FLAC often uses DATE
+        // --- 2. Extended fields ---
 
-        // 2. Track Number
+        // Track Number
         if (tagData.track) tags.trackNumber = tagData.track;
         else if (tagData.TRACKNUMBER) tags.trackNumber = tagData.TRACKNUMBER; // Vorbis
+        else if (tagData.trkn) { // MP4 atom (often array [num, total])
+            const trkn = tagData.trkn.data;
+            if (Array.isArray(trkn) && trkn.length > 0) {
+                tags.trackNumber = trkn.length > 1 && trkn[1] > 0 ? `${trkn[0]}/${trkn[1]}` : `${trkn[0]}`;
+            }
+        }
 
-        // 3. Comments
+        // Disc Number
+        if (tagData.TPOS?.data) tags.discNumber = tagData.TPOS.data;
+        else if(tagData.DISCNUMBER) tags.discNumber = tagData.DISCNUMBER;
+        else if (tagData.disk) { // MP4 atom
+             const disk = tagData.disk.data;
+             if (Array.isArray(disk) && disk.length > 0) {
+                tags.discNumber = disk.length > 1 && disk[1] > 0 ? `${disk[0]}/${disk[1]}` : `${disk[0]}`;
+            }
+        }
+
+        // Comments
         if (tagData.comment) {
              tags.comments = typeof tagData.comment === 'string' ? tagData.comment : tagData.comment.text;
         } else if (tagData.DESCRIPTION) {
              tags.comments = tagData.DESCRIPTION; // Vorbis often uses DESCRIPTION
         } else if (tagData.COMMENT) {
              tags.comments = tagData.COMMENT; // Raw Vorbis comment
+        } else if (tagData['©cmt']) {
+             tags.comments = tagData['©cmt'].data; // MP4 atom
         }
         
-        // 4. Album Artist
-        // TPE2 is ID3, ALBUMARTIST is Vorbis
+        // Album Artist
         if (tagData.TPE2?.data) tags.albumArtist = tagData.TPE2.data;
         else if(tagData.ALBUMARTIST) tags.albumArtist = tagData.ALBUMARTIST;
-        else if(tagData['ALBUM ARTIST']) tags.albumArtist = tagData['ALBUM ARTIST']; 
+        else if(tagData['ALBUM ARTIST']) tags.albumArtist = tagData['ALBUM ARTIST'];
+        else if(tagData.aART) tags.albumArtist = tagData.aART.data; // MP4 atom
 
-        // 5. Disc Number
-        // TPOS is ID3, DISCNUMBER is Vorbis
-        if (tagData.TPOS?.data) tags.discNumber = tagData.TPOS.data;
-        else if(tagData.DISCNUMBER) tags.discNumber = tagData.DISCNUMBER;
-        
-        // 6. Composer
-        // TCOM is ID3, COMPOSER is Vorbis
+        // Composer
         if (tagData.TCOM?.data) tags.composer = tagData.TCOM.data;
         else if(tagData.COMPOSER) tags.composer = tagData.COMPOSER;
+        else if(tagData['©wrt']) tags.composer = tagData['©wrt'].data; // MP4 atom
 
-        // 7. Copyright
-        // TCOP is ID3, COPYRIGHT is Vorbis
+        // Copyright
         if (tagData.TCOP?.data) tags.copyright = tagData.TCOP.data;
         else if(tagData.COPYRIGHT) tags.copyright = tagData.COPYRIGHT;
+        else if(tagData.cprt) tags.copyright = tagData.cprt.data; // MP4 atom
         
-        // 8. Encoded By
-        // TENC is ID3, ENCODEDBY/ENCODER is Vorbis
+        // Encoded By
         if (tagData.TENC?.data) tags.encodedBy = tagData.TENC.data;
         else if (tagData.ENCODEDBY) tags.encodedBy = tagData.ENCODEDBY;
         else if (tagData.ENCODER) tags.encodedBy = tagData.ENCODER;
+        else if (tagData['©enc']) tags.encodedBy = tagData['©enc'].data; // MP4 atom
 
-        // 9. Original Artist
-        // TOPE is ID3, ORIGINALARTIST is Vorbis
+        // Original Artist
         if (tagData.TOPE?.data) tags.originalArtist = tagData.TOPE.data;
         else if (tagData.ORIGINALARTIST) tags.originalArtist = tagData.ORIGINALARTIST;
 
-        // 10. Mood
-        // TMOO is ID3, MOOD is Vorbis
+        // Mood
         if (tagData.TMOO?.data) tags.mood = tagData.TMOO.data; 
         else if (tagData.MOOD) tags.mood = tagData.MOOD;
         
-        // 11. BPM (TBPM)
+        // BPM (TBPM)
         if (tagData.TBPM?.data) tags.bpm = parseInt(tagData.TBPM.data);
         else if (tagData.BPM) tags.bpm = parseInt(tagData.BPM);
+        else if (tagData.tmpo) tags.bpm = parseInt(tagData.tmpo.data); // MP4 atom
 
-        // 12. Initial Key (TKEY)
+        // Initial Key (TKEY)
         if (tagData.TKEY?.data) tags.initialKey = tagData.TKEY.data;
         else if (tagData.INITIALKEY) tags.initialKey = tagData.INITIALKEY;
         else if (tagData.KEY) tags.initialKey = tagData.KEY;
 
-        // Picture (jsmediatags handles parsing METADATA_BLOCK_PICTURE for FLAC as well)
+        // --- 3. Picture / Cover Art ---
         if (tagData.picture) {
             const { data, format } = tagData.picture;
             let base64String = "";
             for (let i = 0; i < data.length; i++) {
                 base64String += String.fromCharCode(data[i]);
             }
-            tags.albumCoverUrl = `data:${format};base64,${window.btoa(base64String)}`;
+            
+            // MP4 Fix: Some MP4 tags don't return a MIME type in 'format' (it might be empty or raw).
+            // Detect based on magic numbers if format is missing or weird.
+            let mimeType = format;
+            if (!mimeType || mimeType === '' || !mimeType.includes('/')) {
+                if (data.length > 3) {
+                    // JPEG: FF D8 FF
+                    if (data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) {
+                        mimeType = "image/jpeg";
+                    } 
+                    // PNG: 89 50 4E 47
+                    else if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) {
+                        mimeType = "image/png";
+                    }
+                    // Default fallback
+                    else {
+                        mimeType = "image/jpeg";
+                    }
+                }
+            }
+
+            tags.albumCoverUrl = `data:${mimeType};base64,${window.btoa(base64String)}`;
+        } else if (tagData.covr) {
+            // Specific MP4 atom 'covr' handling if jsmediatags put it here
+            const covrData = tagData.covr.data;
+            if (covrData) {
+                 let base64String = "";
+                 for (let i = 0; i < covrData.length; i++) {
+                    base64String += String.fromCharCode(covrData[i]);
+                 }
+                 // Detect mime for covr
+                 let mimeType = "image/jpeg"; // Default for MP4 covr usually
+                 if (covrData.length > 3) {
+                     if (covrData[0] === 0x89 && covrData[1] === 0x50) mimeType = "image/png";
+                 }
+                 tags.albumCoverUrl = `data:${mimeType};base64,${window.btoa(base64String)}`;
+            }
         }
         
         resolve(tags);
       },
       onError: (error: any) => {
-        // FIX: Handle "No suitable tag reader found" gracefully.
-        // This usually happens for fresh files without any ID3 headers.
-        // It is NOT a critical error, just means we start with empty tags.
+        // Handle "No suitable tag reader found" gracefully (e.g. fresh files).
         if (error.type === 'tagFormat') {
-            // console.debug(`Informacja: Plik ${file.name} nie posiada wstępnych tagów.`);
             resolve({});
             return;
         }
@@ -146,8 +207,8 @@ export const readID3Tags = (file: File): Promise<ID3Tags> => {
         const errorType = error.type || 'Unknown';
         const errorInfo = error.info || 'No additional info';
         
-        // Log warning but don't crash flow
         console.warn(`Ostrzeżenie odczytu tagów (${file.name}): ${errorType}`, errorInfo);
+        // Resolve empty to allow processing to continue
         resolve({});
       },
     });
@@ -188,7 +249,6 @@ export const proxyImageUrl = (url: string | undefined): string | undefined => {
  */
 const applyID3TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promise<ArrayBuffer> => {
     // FIX: Access the global ID3Writer strictly through window to avoid ReferenceError if not loaded.
-    // Do not use 'ID3Writer' as a fallback variable.
     const Writer = (window as any).ID3Writer || (window as any).BrowserID3Writer;
 
     if (!Writer) {
@@ -204,14 +264,23 @@ const applyID3TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     if (tags.genre) writer.setFrame('TCON', [tags.genre]);
     if (tags.trackNumber) writer.setFrame('TRCK', tags.trackNumber);
     if (tags.albumArtist) writer.setFrame('TPE2', [tags.albumArtist]);
-    if (tags.composer) writer.setFrame('TCOM', [tags.composer]);
-    if (tags.copyright) writer.setFrame('TCOP', tags.copyright);
-    if (tags.encodedBy) writer.setFrame('TENC', tags.encodedBy);
-    if (tags.discNumber) writer.setFrame('TPOS', tags.discNumber);
-    if (tags.comments) writer.setFrame('COMM', { description: 'Comment', text: tags.comments });
     
-    // Less standard frames - wrap in try-catch to prevent crashes if library version doesn't support them
-    // or if validation fails.
+    // Optional/Less supported frames - SAFE WRAPPING
+    if (tags.composer) {
+        try { writer.setFrame('TCOM', [tags.composer]); } catch(e) { console.warn('ID3Writer: Pominięto TCOM', e); }
+    }
+    if (tags.copyright) {
+        try { writer.setFrame('TCOP', tags.copyright); } catch(e) { console.warn('ID3Writer: Pominięto TCOP', e); }
+    }
+    if (tags.encodedBy) {
+        try { writer.setFrame('TENC', tags.encodedBy); } catch(e) { console.warn('ID3Writer: Pominięto TENC', e); }
+    }
+    if (tags.discNumber) {
+        try { writer.setFrame('TPOS', tags.discNumber); } catch(e) { console.warn('ID3Writer: Pominięto TPOS', e); }
+    }
+    if (tags.comments) {
+        try { writer.setFrame('COMM', { description: 'Comment', text: tags.comments }); } catch(e) { console.warn('ID3Writer: Pominięto COMM', e); }
+    }
     
     if (tags.mood) {
         try {
@@ -300,31 +369,48 @@ const applyMP4TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     if (tags.bpm) writer.setTag('tmpo', tags.bpm);
     
     // NEW: Add custom tags for 'mood' and 'originalArtist' for better compatibility with iTunes.
-    // These are stored in generic "----" atoms with a reverse-DNS mean and a name.
     if (tags.mood) {
-        writer.setTag('----', { mean: 'com.apple.iTunes', name: 'MOOD', data: tags.mood });
+        try {
+            writer.setTag('----', { mean: 'com.apple.iTunes', name: 'MOOD', data: tags.mood });
+        } catch (e) {
+            console.warn('MP4Writer: Failed to set MOOD atom', e);
+        }
     }
     if (tags.originalArtist) {
-        writer.setTag('----', { mean: 'com.apple.iTunes', name: 'ORIGINAL ARTIST', data: tags.originalArtist });
+        try {
+            writer.setTag('----', { mean: 'com.apple.iTunes', name: 'ORIGINAL ARTIST', data: tags.originalArtist });
+        } catch (e) {
+            console.warn('MP4Writer: Failed to set ORIGINAL ARTIST atom', e);
+        }
     }
     if (tags.initialKey) {
-        // 'key' atom is uncommon in standard mp4 libraries, often stored as custom or comment
-        // Using custom atom for safety
-        writer.setTag('----', { mean: 'com.apple.iTunes', name: 'INITIAL KEY', data: tags.initialKey });
+        try {
+            writer.setTag('----', { mean: 'com.apple.iTunes', name: 'INITIAL KEY', data: tags.initialKey });
+        } catch (e) {
+            console.warn('MP4Writer: Failed to set INITIAL KEY atom', e);
+        }
     }
 
     // Track and Disc numbers are special cases
     if (tags.trackNumber) {
-        const parts = String(tags.trackNumber).split('/');
-        const number = parseInt(parts[0], 10) || 0;
-        const total = parts.length > 1 ? parseInt(parts[1], 10) : 0;
-        writer.setTag('trkn', [number, total]);
+        try {
+            const parts = String(tags.trackNumber).split('/');
+            const number = parseInt(parts[0], 10) || 0;
+            const total = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            writer.setTag('trkn', [number, total]);
+        } catch (e) {
+            console.warn('MP4Writer: Failed to set trkn atom', e);
+        }
     }
      if (tags.discNumber) {
-        const parts = String(tags.discNumber).split('/');
-        const number = parseInt(parts[0], 10) || 0;
-        const total = parts.length > 1 ? parseInt(parts[1], 10) : 0;
-        writer.setTag('disk', [number, total]);
+        try {
+            const parts = String(tags.discNumber).split('/');
+            const number = parseInt(parts[0], 10) || 0;
+            const total = parts.length > 1 ? parseInt(parts[1], 10) : 0;
+            writer.setTag('disk', [number, total]);
+        } catch (e) {
+            console.warn('MP4Writer: Failed to set disk atom', e);
+        }
     }
     
     if (tags.albumCoverUrl) {
@@ -376,8 +462,6 @@ export const applyTags = async (file: File, tags: ID3Tags): Promise<Blob> => {
         return new Blob([taggedBuffer], { type: file.type });
     } catch (error) {
         console.error(`Błąd podczas aplikowania tagów dla pliku ${file.name}:`, error);
-        // If tagging fails, return the original file blob so the save process can continue (e.g. renaming)
-        // We throw specific error so caller knows tags weren't applied but file is safe
         throw new Error(`Nie udało się zapisać tagów: ${error instanceof Error ? error.message : String(error)}. Plik zostanie zapisany w oryginalnej formie.`);
     }
 };
@@ -385,8 +469,6 @@ export const applyTags = async (file: File, tags: ID3Tags): Promise<Blob> => {
 
 /**
  * Saves a file directly to the user's filesystem using the File System Access API.
- * This is the "brain" for saving, which intelligently decides whether to write tags
- * based on the file format and handles errors robustly.
  * @param dirHandle The handle to the root directory for saving.
  * @param audioFile The file object from the application state.
  * @returns An object indicating success and the updated file object for state management.
@@ -406,8 +488,7 @@ export const saveFileDirectly = async (
     let tagWriteSuccess = false;
     let tagErrorMsg = "";
 
-    // Intelligent Tag Writing: Only attempt to write tags for supported files.
-    // For other formats (like FLAC), we proceed with just renaming/moving.
+    // Intelligent Tag Writing
     if (supportsTagWriting && audioFile.fetchedTags) {
       try {
         blobToSave = await applyTags(audioFile.file, audioFile.fetchedTags);
@@ -415,7 +496,6 @@ export const saveFileDirectly = async (
       } catch (tagError: any) {
         console.warn(`Nie udało się zapisać tagów dla ${audioFile.file.name}, plik zostanie tylko przemianowany. Błąd:`, tagError);
         tagErrorMsg = tagError.message;
-        // Fallback to original blob if tagging fails
         blobToSave = audioFile.file;
       }
     }
@@ -423,20 +503,15 @@ export const saveFileDirectly = async (
     const currentPath = audioFile.webkitRelativePath || audioFile.file.name;
     const targetPath = audioFile.newName || currentPath;
     
-    // Normalize paths to check if rename is actually needed
     const normalizedCurrent = currentPath.replace(/^\/+/, '');
     const normalizedTarget = targetPath.replace(/^\/+/, '');
     
     const needsRename = normalizedCurrent !== normalizedTarget;
 
-    // If no changes are needed (no rename and no tags written), we can skip.
-    // Exception: if we WANTED to write tags but failed, we return specific info.
     if (!needsRename && !tagWriteSuccess) {
         if (tagErrorMsg) {
-             // If renaming wasn't needed, but tags failed, it's a partial failure.
             return { success: false, errorMessage: `Brak zmiany nazwy i błąd zapisu tagów: ${tagErrorMsg}` };
         }
-        // Nothing changed at all, return success.
         return { success: true, updatedFile: audioFile };
     }
 
@@ -449,12 +524,12 @@ export const saveFileDirectly = async (
     }
 
     let targetDirHandle = dirHandle;
-    // Iterate through folders to get/create the destination folder
     for (const part of pathParts) {
         try {
             targetDirHandle = await targetDirHandle.getDirectoryHandle(part, { create: true });
         } catch (e: any) {
              if (e.name === 'NotAllowedError') throw new Error(`Brak uprawnień do tworzenia folderu "${part}". Sprawdź uprawnienia przeglądarki.`);
+             if (e.name === 'NotFoundError') throw new Error(`Folder nadrzędny przestał istnieć. Odśwież połączenie z folderem.`);
              throw new Error(`Nie udało się utworzyć folderu "${part}": ${e.message}`);
         }
     }
@@ -466,12 +541,11 @@ export const saveFileDirectly = async (
     } catch (e: any) {
         if (e.name === 'TypeMismatchError') throw new Error(`Nazwa "${filename}" jest już zajęta przez folder.`);
         if (e.name === 'NotAllowedError') throw new Error(`Brak uprawnień do utworzenia pliku "${filename}".`);
+        if (e.name === 'NotFoundError') throw new Error(`Ścieżka docelowa nie istnieje.`);
         throw e;
     }
 
-    // Check if we are overwriting the SAME file in place
     try {
-        // createWritable might fail if file is locked by another app
         const writable = await newFileHandle.createWritable({ keepExistingData: false });
         await writable.write(blobToSave);
         await writable.close();
@@ -479,10 +553,6 @@ export const saveFileDirectly = async (
         if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
              throw new Error(`Użytkownik odmówił uprawnień do zapisu pliku "${filename}". Upewnij się, że zaakceptowałeś prośbę przeglądarki.`);
         }
-        // Specific error codes for file locks:
-        // InvalidStateError: Often file is open in another app (Windows)
-        // NoModificationAllowedError: File is readonly or locked
-        // code 11: InvalidModificatonError (legacy)
         if (e.name === 'InvalidStateError' || e.name === 'NoModificationAllowedError' || e.code === 11) {
              throw new Error(`Plik "${filename}" jest zablokowany lub używany przez inny program (np. odtwarzacz muzyki, Spotify). Zamknij inne aplikacje korzystające z tego pliku i spróbuj ponownie.`);
         }
@@ -500,13 +570,10 @@ export const saveFileDirectly = async (
              
         if (originalFilename) {
             let parentDirHandle = dirHandle;
-            // Navigate to original folder
             for (const part of originalPathParts) {
                 try {
                     parentDirHandle = await parentDirHandle.getDirectoryHandle(part, { create: false });
                 } catch {
-                    // If we can't find the source folder, it might have been moved already or logic is off.
-                    // We silently ignore as the new file is safe.
                     parentDirHandle = null;
                     break;
                 }
@@ -517,16 +584,12 @@ export const saveFileDirectly = async (
             }
         }
       } catch(removeError: any) {
-         // Log a warning but do not treat this as a failure of the entire save operation.
-         // The new file has been created successfully. The old file might just need manual cleanup.
          console.warn(`Nowy plik został pomyślnie zapisany w '${targetPath}', ale nie udało się usunąć oryginalnego pliku '${currentPath}'. Może być zablokowany przez inny proces. Błąd:`, removeError);
       }
     }
 
-    // --- 4. RETURN SUCCESS ---
     const updatedCoreFile = await newFileHandle.getFile();
     
-    // We construct a detailed success message if tag writing failed but rename worked
     let errorWarning = undefined;
     if (!tagWriteSuccess && supportsTagWriting && audioFile.fetchedTags) {
         errorWarning = "Nazwa zmieniona, ale tagi nie zostały zapisane (problem z biblioteką).";
@@ -540,7 +603,7 @@ export const saveFileDirectly = async (
             file: updatedCoreFile, 
             handle: newFileHandle, 
             newName: normalizedTarget,
-            webkitRelativePath: normalizedTarget // Update the path for future operations
+            webkitRelativePath: normalizedTarget
         }
     };
 

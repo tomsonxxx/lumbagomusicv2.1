@@ -78,103 +78,110 @@ const DuplicateFinderTab: React.FC<DuplicateFinderTabProps> = ({
   }
 
   return (
-    <div className="animate-fade-in p-4 pb-20">
-      <div className="text-center mb-8 bg-slate-100 dark:bg-slate-800/50 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Wyszukiwarka Duplikatów</h2>
-        <p className="text-slate-500 dark:text-slate-400 mb-6">
-          Wykrywanie: Nazwa pliku • Tagi ID3 • Audio Fingerprint (Analiza dźwięku)
+    <div className="animate-fade-in p-4 pb-20 max-w-5xl mx-auto">
+      <div className="text-center mb-8 bg-slate-100 dark:bg-slate-800/50 p-8 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">Wyszukiwarka Duplikatów</h2>
+        <p className="text-slate-500 dark:text-slate-400 mb-8 max-w-2xl mx-auto">
+          Znajdź i usuń zduplikowane utwory. Wykrywanie opiera się na analizie nazwy pliku, tagów ID3 oraz <span className="text-indigo-500 font-bold">Unikalnego Odcisku Audio</span> (analiza zawartości dźwiękowej).
         </p>
         
         {!isScanning ? (
             <button
             onClick={handleScan}
-            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-lg transition-transform transform hover:scale-105 flex items-center mx-auto"
+            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg shadow-lg shadow-indigo-500/30 transition-all transform hover:scale-105 flex items-center mx-auto"
             >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 {scannedOnce ? 'Skanuj ponownie' : 'Rozpocznij skanowanie'}
             </button>
         ) : (
             <div className="w-full max-w-md mx-auto">
-                <div className="flex justify-between text-xs text-slate-400 mb-1">
-                    <span>{statusText}</span>
+                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-2 font-mono">
+                    <span className="truncate pr-4">{statusText}</span>
                     <span>{progress}%</span>
                 </div>
-                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                    <div className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                    <div className="bg-indigo-600 h-full rounded-full transition-all duration-300 relative" style={{ width: `${progress}%` }}>
+                        <div className="absolute inset-0 bg-white/30 animate-[shimmer_2s_infinite]"></div>
+                    </div>
                 </div>
             </div>
         )}
       </div>
 
       {scannedOnce && !isScanning && groups.length === 0 && (
-          <div className="text-center text-green-600 dark:text-green-400 p-8">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <p className="text-xl font-semibold">Świetnie! Nie znaleziono duplikatów.</p>
+          <div className="text-center text-green-600 dark:text-green-400 p-12 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto mb-4 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-xl font-bold">Świetnie! Nie znaleziono duplikatów.</p>
+              <p className="text-sm opacity-80 mt-2">Twoja biblioteka jest czysta.</p>
           </div>
       )}
 
       <div className="space-y-6">
         {groups.map((group) => (
-          <div key={group.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div key={group.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in">
             <div className="bg-slate-50 dark:bg-slate-700/50 p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                 <span className={`text-xs font-bold uppercase tracking-wider text-white px-2 py-0.5 rounded 
-                    ${group.type === 'fingerprint' ? 'bg-purple-500' : 'bg-slate-500'}`}>
-                    {group.type === 'filename' ? 'Nazwa' : group.type === 'metadata' ? 'Tagi' : group.type === 'fingerprint' ? 'Audio' : 'Rozmiar'}
+              <div className="flex items-center gap-3">
+                 <span className={`text-[10px] font-bold uppercase tracking-wider text-white px-2 py-1 rounded 
+                    ${group.type === 'fingerprint' ? 'bg-purple-500 shadow-purple-500/50' : 
+                      group.type === 'filename' ? 'bg-blue-500' : 
+                      'bg-slate-500'}`}>
+                    {group.type === 'filename' ? 'Nazwa' : group.type === 'metadata' ? 'Tagi' : group.type === 'fingerprint' ? 'Audio Match' : 'Rozmiar'}
                  </span>
-                 <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-md" title={group.key}>{group.key}</span>
-                 {group.similarity && group.similarity < 100 && (
-                     <span className="text-xs bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded font-bold">
-                         {group.similarity}% podobieństwa
-                     </span>
-                 )}
+                 <div className="flex flex-col">
+                     <span className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate max-w-md" title={group.key}>{group.key}</span>
+                     {group.similarity && group.similarity < 100 && (
+                         <span className="text-[10px] text-slate-500">
+                             Podobieństwo: <span className="text-indigo-500 font-bold">{group.similarity}%</span>
+                         </span>
+                     )}
+                 </div>
               </div>
               <div className="flex space-x-2">
-                  <button onClick={() => keepBest(group.id, 'bitrate')} className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:bg-green-200 transition-colors">
-                      Auto: Najlepsza jakość
+                  <button onClick={() => keepBest(group.id, 'bitrate')} className="text-xs px-3 py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors font-medium">
+                      Zachowaj najlepszą jakość
                   </button>
-                  <button onClick={() => ignoreGroup(group.id)} className="text-xs px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-300 transition-colors">
+                  <button onClick={() => ignoreGroup(group.id)} className="text-xs px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
                       Ignoruj
                   </button>
               </div>
             </div>
             
-            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
                {group.files.map(file => {
                    const tags = file.fetchedTags || file.originalTags;
                    const bitrate = tags.bitrate || 0;
                    const isPlayingThis = playingFileId === file.id && isPlaying;
 
                    return (
-                       <div key={file.id} className="p-3 flex items-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                           <div className="relative mr-4 group cursor-pointer flex-shrink-0" onClick={() => onPlayPause(file.id)}>
-                               <AlbumCover tags={tags} className="w-10 h-10" />
-                               <div className={`absolute inset-0 flex items-center justify-center bg-black/40 rounded-md transition-opacity ${isPlayingThis ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                       <div key={file.id} className="p-3 flex items-center hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
+                           <div className="relative mr-4 group/cover cursor-pointer flex-shrink-0" onClick={() => onPlayPause(file.id)}>
+                               <AlbumCover tags={tags} className="w-12 h-12 rounded-md shadow-sm" />
+                               <div className={`absolute inset-0 flex items-center justify-center bg-black/40 rounded-md transition-opacity ${isPlayingThis ? 'opacity-100' : 'opacity-0 group-hover/cover:opacity-100'}`}>
                                     {isPlayingThis ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                                     ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                                     )}
                                </div>
                            </div>
                            
                            <div className="flex-grow min-w-0 mr-4">
                                <div className="flex items-center gap-2">
-                                   <p className="text-sm font-medium text-slate-900 dark:text-white truncate" title={file.file.name}>{file.file.name}</p>
+                                   <p className="text-sm font-bold text-slate-900 dark:text-white truncate" title={file.file.name}>{file.file.name}</p>
                                    <StatusIcon state={file.state} />
                                </div>
-                               <div className="flex text-xs text-slate-500 dark:text-slate-400 space-x-3 mt-0.5">
-                                   <span>{(file.file.size / 1024 / 1024).toFixed(2)} MB</span>
-                                   <span className="text-slate-300">|</span>
+                               <div className="flex text-xs text-slate-500 dark:text-slate-400 space-x-3 mt-1 items-center">
+                                   <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{(file.file.size / 1024 / 1024).toFixed(2)} MB</span>
+                                   <span className="text-slate-300 dark:text-slate-600">|</span>
                                    <span className={bitrate > 300 ? 'text-green-600 dark:text-green-400 font-bold' : ''}>{bitrate ? `${bitrate} kbps` : 'N/A'}</span>
-                                   <span className="text-slate-300">|</span>
-                                   <span className="truncate max-w-[200px]" title={file.webkitRelativePath}>{file.webkitRelativePath || 'root'}</span>
+                                   <span className="text-slate-300 dark:text-slate-600">|</span>
+                                   <span className="truncate max-w-[200px] font-mono opacity-70" title={file.webkitRelativePath}>{file.webkitRelativePath || 'root'}</span>
                                </div>
                            </div>
 
                            <button 
                                 onClick={() => onDelete(file.id)}
-                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors flex-shrink-0"
+                                className="p-2 text-red-500 bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-full transition-colors flex-shrink-0"
                                 title="Usuń ten plik"
                            >
                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>

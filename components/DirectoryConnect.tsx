@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface DirectoryConnectProps {
@@ -39,8 +40,8 @@ const DirectoryConnect: React.FC<DirectoryConnectProps> = ({ onDirectoryConnect 
     
             // Specifically handle the SecurityError that occurs in sandboxed iframes.
             if (err.name === 'SecurityError') {
-                console.error('SecurityError while showing directory picker:', err);
-                alert("Dostęp do folderu jest niemożliwy w tym odizolowanym środowisku. Aplikacja nie ma uprawnień do otwierania lokalnych folderów, gdy jest osadzona w innej stronie.");
+                console.warn('SecurityError while showing directory picker (iframe restriction):', err);
+                alert("Dostęp do folderu jest niemożliwy w tym środowisku (np. wewnątrz innej strony). Użyj standardowego wyboru plików.");
             } else {
                 // Handle other potential errors.
                 console.error('Error connecting to directory:', err);
@@ -53,7 +54,7 @@ const DirectoryConnect: React.FC<DirectoryConnectProps> = ({ onDirectoryConnect 
         <div className="flex flex-col items-center justify-center p-6 bg-slate-100 dark:bg-slate-800/50 rounded-lg">
             <div className="flex items-center text-indigo-600 dark:text-indigo-400">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mr-3" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 01-2 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
                     <path stroke="#fff" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 11V7m0 8v-2" />
                 </svg>
                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">Tryb Bezpośredniego Dostępu</h3>

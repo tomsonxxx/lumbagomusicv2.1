@@ -26,7 +26,7 @@ export const findDuplicatesAsync = async (
   const processedIds = new Set<string>();
 
   // --- PHASE 1: Fast (Synchronous) Checks ---
-  if (onProgress) onProgress(10, "Analyzing filenames...");
+  if (onProgress) onProgress(10, "Analiza nazw plików...");
 
   // 1. Exact Filename
   const nameMap = new Map<string, AudioFile[]>();
@@ -40,7 +40,7 @@ export const findDuplicatesAsync = async (
     if (groupFiles.length > 1) {
       groups.push({
         id: generateId(),
-        key: `Filename: ${name}`,
+        key: `Identyczna nazwa: ${name}`,
         files: groupFiles,
         type: 'filename',
         similarity: 100
@@ -49,7 +49,7 @@ export const findDuplicatesAsync = async (
     }
   });
 
-  if (onProgress) onProgress(20, "Analyzing metadata...");
+  if (onProgress) onProgress(20, "Analiza metadanych...");
 
   // 2. Metadata (Artist + Title)
   const metaMap = new Map<string, AudioFile[]>();
@@ -70,7 +70,7 @@ export const findDuplicatesAsync = async (
        const [artist, title] = key.split('|');
        groups.push({
          id: generateId(),
-         key: `Tags: ${groupFiles[0].originalTags.artist || artist} - ${groupFiles[0].originalTags.title || title}`,
+         key: `Tagi: ${groupFiles[0].originalTags.artist || artist} - ${groupFiles[0].originalTags.title || title}`,
          files: groupFiles,
          type: 'metadata',
          similarity: 100
@@ -83,7 +83,7 @@ export const findDuplicatesAsync = async (
   // Strategy: Only fingerprint files that have similar duration to find candidates.
   // This avoids decoding every single file.
   
-  if (onProgress) onProgress(40, "Grouping candidates for audio analysis...");
+  if (onProgress) onProgress(40, "Grupowanie kandydatów do analizy audio...");
 
   const candidates = files.filter(f => !processedIds.has(f.id));
   const durationGroups = new Map<number, AudioFile[]>();
@@ -111,10 +111,14 @@ export const findDuplicatesAsync = async (
           if (!fpCache.has(file.id)) {
               if (onProgress) {
                   const p = 40 + Math.floor((analyzedCount / totalFilesToAnalyze) * 60);
-                  onProgress(p, `Analyzing audio: ${file.file.name}`);
+                  onProgress(p, `Analiza audio: ${file.file.name}`);
               }
-              const fp = await generateFingerprint(file.file);
-              fpCache.set(file.id, fp);
+              try {
+                  const fp = await generateFingerprint(file.file);
+                  if (fp) fpCache.set(file.id, fp);
+              } catch (e) {
+                  console.warn(`Skipping fingerprint for ${file.file.name}`, e);
+              }
               analyzedCount++;
           }
       }
@@ -150,7 +154,7 @@ export const findDuplicatesAsync = async (
       }
   }
 
-  if (onProgress) onProgress(100, "Done.");
+  if (onProgress) onProgress(100, "Zakończono.");
   return groups;
 };
 

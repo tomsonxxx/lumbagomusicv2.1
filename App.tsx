@@ -104,22 +104,72 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleFilesSelected = async (fileList: FileList) => {
-    const newFiles: AudioFile[] = [];
-    for (let i = 0; i < fileList.length; i++) {
-        const file = fileList[i];
-        const tags = await readID3Tags(file);
-        newFiles.push({
-            id: crypto.randomUUID(),
-            file: file,
-            state: ProcessingState.PENDING,
-            originalTags: tags,
-            fetchedTags: undefined, // Initially undefined
-            dateAdded: Date.now(),
-            isSelected: false,
-            isFavorite: false
-        });
+  const handleFilesSelected = async (fileList: File[] | FileList) => {
+    // Normalize to array
+    const rawFiles: File[] = Array.isArray(fileList) 
+        ? fileList 
+        : Array.from(fileList);
+
+    if (rawFiles.length === 0) return;
+
+    // Filter non-audio files (safety check)
+    const validFiles = rawFiles.filter(f => 
+        f.type.startsWith('audio/') || 
+        f.name.match(/\.(mp3|wav|flac|ogg|m4a|aac|wma)$/i)
+    );
+
+    if (validFiles.length === 0) {
+        alert("Brak obsługiwanych plików audio w wyborze.");
+        return;
     }
+
+    // Process in chunks to avoid blocking UI and excessive memory usage at once
+    const CHUNK_SIZE = 10;
+    const newFiles: AudioFile[] = [];
+
+    // Create placeholders first to show immediate feedback if needed, 
+    // but here we wait for basic tag reading (it's fast enough locally)
+    
+    for (let i = 0; i < validFiles.length; i += CHUNK_SIZE) {
+        const chunk = validFiles.slice(i, i + CHUNK_SIZE);
+        
+        // Parallel processing of ID3 reading for this chunk
+        const chunkResults = await Promise.all(chunk.map(async (file) => {
+            try {
+                const tags = await readID3Tags(file);
+                return {
+                    id: crypto.randomUUID(),
+                    file: file,
+                    state: ProcessingState.PENDING,
+                    originalTags: tags,
+                    fetchedTags: undefined,
+                    dateAdded: Date.now(),
+                    isSelected: false,
+                    isFavorite: false
+                } as AudioFile;
+            } catch (e) {
+                console.warn(`Failed to read tags for ${file.name}`, e);
+                // Return bare minimum file on error
+                return {
+                    id: crypto.randomUUID(),
+                    file: file,
+                    state: ProcessingState.PENDING,
+                    originalTags: {},
+                    fetchedTags: undefined,
+                    dateAdded: Date.now(),
+                    isSelected: false,
+                    isFavorite: false
+                } as AudioFile;
+            }
+        }));
+        
+        newFiles.push(...chunkResults);
+        
+        // Optional: Update state incrementally if list is huge
+        // setFiles(prev => [...prev, ...chunkResults]);
+    }
+
+    // Final update
     setFiles(prev => [...prev, ...newFiles]);
     if (newFiles.length > 0) setActiveView('library');
   };
