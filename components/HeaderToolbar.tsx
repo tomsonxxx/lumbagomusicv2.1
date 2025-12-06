@@ -95,17 +95,17 @@ const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
   const isAnyLoading = isAnalyzing || isSaving;
 
   return (
-    <div className="flex items-center justify-between px-2 py-3 bg-lumbago-dark/30 backdrop-blur-sm border-b border-white/5 sticky top-0 z-40">
+    <div className="flex items-center justify-between px-2 py-2 h-12 w-full">
         
         {/* Lewa strona: Tytuł sekcji + Folder Info */}
         <div className="flex items-center gap-3">
              <div className="flex items-baseline gap-2">
-                <h2 className="text-lg font-bold text-white">Biblioteka</h2>
-                <span className="text-slate-500 text-xs font-mono">({totalCount})</span>
+                <h2 className="text-md font-bold text-white">Biblioteka</h2>
+                <span className="text-slate-500 text-[10px] font-mono">({totalCount})</span>
              </div>
              {isDirectAccessMode && (
                 <div className="hidden sm:flex items-center text-[10px] text-lumbago-primary/80 bg-lumbago-primary/10 px-2 py-0.5 rounded border border-lumbago-primary/20" title={directoryName}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm2 2v1h12V8H4z" clipRule="evenodd" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h4a2 2 0 01-2 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm2 2v1h12V8H4z" clipRule="evenodd" /></svg>
                     <span className="truncate max-w-[150px]">{directoryName}</span>
                 </div>
             )}
@@ -115,7 +115,7 @@ const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
         <div className="flex-1 max-w-sm mx-4">
             <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-slate-500 group-focus-within:text-lumbago-primary transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <svg className="h-3.5 w-3.5 text-slate-500 group-focus-within:text-lumbago-primary transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                     </svg>
                 </div>
@@ -124,7 +124,7 @@ const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                     placeholder="Szukaj..."
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    className="block w-full pl-9 pr-3 py-1.5 border border-slate-700 rounded-md leading-5 bg-slate-900/50 text-white placeholder-slate-500 focus:outline-none focus:border-lumbago-primary focus:ring-1 focus:ring-lumbago-primary text-xs transition-all"
+                    className="block w-full pl-8 pr-3 py-1 border border-slate-700 rounded-md leading-5 bg-slate-900/50 text-white placeholder-slate-500 focus:outline-none focus:border-lumbago-primary focus:ring-1 focus:ring-lumbago-primary text-xs transition-all h-8"
                 />
             </div>
         </div>
@@ -134,7 +134,7 @@ const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             
             {/* Przyciski Akcji Masowych */}
             {hasSelection ? (
-                <div className="flex items-center gap-1.5 animate-fade-in bg-slate-800/80 px-2 py-1 rounded border border-white/10">
+                <div className="flex items-center gap-1.5 animate-fade-in bg-slate-800/80 px-2 py-0.5 rounded border border-white/10">
                     <span className="text-[10px] font-bold text-white mr-1">{selectedCount}</span>
                     
                     <ActionButton
@@ -184,13 +184,13 @@ const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                     onClick={() => onViewModeChange('list')}
                     className={`p-1 rounded transition-all ${viewMode === 'list' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-white'}`}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                 </button>
                 <button
                     onClick={() => onViewModeChange('grid')}
                     className={`p-1 rounded transition-all ${viewMode === 'grid' ? 'bg-slate-700 text-white shadow' : 'text-slate-500 hover:text-white'}`}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                 </button>
             </div>
 

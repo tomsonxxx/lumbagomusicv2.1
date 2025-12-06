@@ -22,42 +22,55 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ analyser, isPlaying, 
     const dataArray = new Uint8Array(bufferLength);
 
     const draw = () => {
-      if (!isPlaying) {
-         // Opcjonalne: wygaszanie, gdy zapauzowane
-         // return; 
-      }
-      
       animationRef.current = requestAnimationFrame(draw);
       analyser.getByteFrequencyData(dataArray);
 
-      // Dopasuj rozmiar canvas do kontenera
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-      const width = canvas.width;
-      const height = canvas.height;
+      // Dopasuj rozmiar canvas
+      const width = canvas.width = canvas.offsetWidth;
+      const height = canvas.height = canvas.offsetHeight;
 
       ctx.clearRect(0, 0, width, height);
 
-      // Styl wizualizacji: Bary neonowe
-      const barWidth = (width / bufferLength) * 2.5;
-      let barHeight;
-      let x = 0;
+      // --- NEON EFFECTS CONFIG ---
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#8ef0ff'; // Cyan glow
+      ctx.globalCompositeOperation = 'screen'; // Additive blending for glow
 
-      for (let i = 0; i < bufferLength; i++) {
-        barHeight = (dataArray[i] / 255) * height;
+      // Use fewer bars for cleaner look (mirrored)
+      const barsToDraw = 64; 
+      const step = Math.floor(bufferLength / barsToDraw);
+      const barWidth = (width / barsToDraw) / 2.2; 
+      
+      const centerX = width / 2;
 
-        // Gradient neonowy
-        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-        gradient.addColorStop(0, '#4f46e5'); // indigo-600
-        gradient.addColorStop(1, '#a855f7'); // purple-500
+      for (let i = 0; i < barsToDraw; i++) {
+        // Average value for smoother bars
+        let value = 0;
+        for(let j=0; j<step; j++) {
+            value += dataArray[i * step + j];
+        }
+        value = value / step;
 
-        ctx.fillStyle = gradient;
-        // Zaokrąglone końce barów
+        // Scale height
+        const barHeight = (value / 255) * height * 0.8;
+        
+        // Dynamic Gradient
+        // Map index to hue
+        const hue = 180 + (i / barsToDraw) * 120; // 180 (Cyan) -> 300 (Purple)
+        ctx.fillStyle = `hsl(${hue}, 100%, 60%)`;
+        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+
+        // Draw Right Side
+        const xRight = centerX + (i * (barWidth + 2));
         ctx.beginPath();
-        ctx.roundRect(x, height - barHeight, barWidth, barHeight, [4, 4, 0, 0]);
+        ctx.roundRect(xRight, (height - barHeight) / 2, barWidth, barHeight, 2);
         ctx.fill();
 
-        x += barWidth + 1;
+        // Draw Left Side (Mirrored)
+        const xLeft = centerX - (i * (barWidth + 2)) - barWidth;
+        ctx.beginPath();
+        ctx.roundRect(xLeft, (height - barHeight) / 2, barWidth, barHeight, 2);
+        ctx.fill();
       }
     };
 
@@ -68,7 +81,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ analyser, isPlaying, 
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [analyser, isPlaying]);
+  }, [analyser]);
 
   return (
     <canvas 

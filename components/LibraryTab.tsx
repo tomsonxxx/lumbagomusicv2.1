@@ -56,11 +56,11 @@ const SortableHeader: React.FC<{
     const isActive = currentKey === sortKey;
     return (
         <div 
-            className={`flex items-center cursor-pointer hover:text-lumbago-primary transition-colors py-2 px-2 font-bold text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 select-none ${alignRight ? 'justify-end' : ''} ${className}`}
+            className={`flex items-center cursor-pointer group hover:text-white transition-colors py-2 px-2 font-bold text-[10px] uppercase tracking-wider text-slate-500 select-none ${alignRight ? 'justify-end' : ''} ${className}`}
             onClick={() => onClick && onClick(sortKey)}
         >
-            {label}
-            <div className="ml-1 w-3 flex flex-col items-center">
+            <span className="truncate">{label}</span>
+            <div className={`ml-1 w-3 flex flex-col items-center transition-opacity ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
                 {isActive && (
                     direction === 'asc' 
                     ? <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
@@ -154,17 +154,8 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
     );
   }
 
-  // --- Compact Grid Layout Definition ---
-  // 1. Checkbox (Auto)
-  // 2. Status (30px)
-  // 3. Title/Cover (Flex - Main info)
-  // 4. Artist (2fr)
-  // 5. Album (2fr)
-  // 6. BPM (60px)
-  // 7. Key (50px)
-  // 8. Genre/Year (100px)
-  // 9. Actions (100px)
-  const gridTemplate = "grid-cols-[30px_30px_minmax(200px,4fr)_minmax(120px,2fr)_minmax(120px,2fr)_60px_50px_90px_100px]";
+  // --- STRICT GRID SYSTEM CONFIGURATION ---
+  const gridTemplate = "grid-cols-[30px_40px_minmax(200px,4fr)_minmax(120px,3fr)_minmax(120px,3fr)_50px_50px_80px_90px_30px]";
 
   return (
     <div className="relative flex flex-col h-full">
@@ -175,32 +166,60 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
             </div>
         )}
 
-      {/* Toolbar - Static part of the layout */}
-      <HeaderToolbar
-        totalCount={props.files.length}
-        selectedCount={props.selectedFiles.length}
-        isAnalyzing={props.isBatchAnalyzing}
-        isSaving={props.isSaving}
-        allSelected={props.allFilesSelected}
-        onToggleSelectAll={props.onToggleSelectAll}
-        onAnalyze={() => props.onBatchAnalyze(props.selectedFiles)}
-        onAnalyzeAll={props.onBatchAnalyzeAll}
-        onDownloadOrSave={props.onDownloadOrSave}
-        onEdit={props.onBatchEdit}
-        onRename={props.onRename}
-        onExportCsv={props.onExportCsv}
-        onDelete={() => props.onDeleteItem('selected')}
-        onClearAll={props.onClearAll}
-        isDirectAccessMode={!!props.directoryHandle}
-        directoryName={props.directoryHandle?.name}
-        isRestored={props.isRestored}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onToggleFilters={() => setShowFilters(!showFilters)}
-        showFilters={showFilters}
-      />
+      {/* 
+          --- COMBINED STICKY HEADER BLOCK ---
+          Wrapping Toolbar and List Header in one sticky block.
+          Using negative margins (-mx-4 -mt-4) to counteract the Layout's padding
+          and force the header to the very top of the scrollable viewport.
+      */}
+      <div className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-lumbago-border shadow-xl -mx-4 -mt-4 pt-4 px-4">
+          <HeaderToolbar
+            totalCount={props.files.length}
+            selectedCount={props.selectedFiles.length}
+            isAnalyzing={props.isBatchAnalyzing}
+            isSaving={props.isSaving}
+            allSelected={props.allFilesSelected}
+            onToggleSelectAll={props.onToggleSelectAll}
+            onAnalyze={() => props.onBatchAnalyze(props.selectedFiles)}
+            onAnalyzeAll={props.onBatchAnalyzeAll}
+            onDownloadOrSave={props.onDownloadOrSave}
+            onEdit={props.onBatchEdit}
+            onRename={props.onRename}
+            onExportCsv={props.onExportCsv}
+            onDelete={() => props.onDeleteItem('selected')}
+            onClearAll={props.onClearAll}
+            isDirectAccessMode={!!props.directoryHandle}
+            directoryName={props.directoryHandle?.name}
+            isRestored={props.isRestored}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            onToggleFilters={() => setShowFilters(!showFilters)}
+            showFilters={showFilters}
+          />
+          
+          {/* List Header - Only visible in list view, part of sticky block */}
+          {viewMode === 'list' && (
+              <div className={`hidden md:grid ${gridTemplate} gap-2 px-2 pb-1 text-[10px] mt-2 border-t border-white/5 pt-1`}>
+                    <div className="flex items-center justify-center py-2">
+                        <input type="checkbox" checked={props.allFilesSelected} onChange={props.onToggleSelectAll} className="h-3 w-3 rounded bg-slate-800 border-slate-600 text-lumbago-secondary focus:ring-0 cursor-pointer" />
+                    </div>
+                    
+                    <SortableHeader label="St" sortKey="state" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} className="border-r border-white/5 justify-center" />
+                    <SortableHeader label="Utwór" sortKey="title" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <SortableHeader label="Artysta" sortKey="artist" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <SortableHeader label="Album" sortKey="album" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <SortableHeader label="BPM" sortKey="bpm" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <SortableHeader label="Key" sortKey="key" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    <SortableHeader label="Gatunek" sortKey="genre" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
+                    
+                    <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right py-2 pr-2 flex items-center justify-end">Akcje</div>
+                    {/* Empty cell for expand button */}
+                    <div></div> 
+              </div>
+          )}
+      </div>
       
       <FilterSidebar 
           files={props.files}
@@ -210,7 +229,7 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
           onClose={() => setShowFilters(false)}
       />
 
-      <div className="mt-2 pb-20">
+      <div className="mt-0 pb-20">
         {filteredFiles.length === 0 ? (
             <div className="text-center py-20 opacity-60">
                 <p className="text-lg text-slate-500 dark:text-slate-400">Nie znaleziono plików pasujących do kryteriów.</p>
@@ -218,23 +237,8 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
             </div>
         ) : viewMode === 'list' ? (
             <div className="w-full">
-                {/* Sticky Header - Fixed top-0 relative to scrolling container */}
-                <div className={`hidden md:grid ${gridTemplate} gap-2 px-2 border-b border-lumbago-border/50 bg-slate-100/95 dark:bg-[#0a0e27]/95 backdrop-blur-md sticky top-0 z-30 shadow-sm`}>
-                    <div className="flex items-center justify-center py-2">
-                        <input type="checkbox" checked={props.allFilesSelected} onChange={props.onToggleSelectAll} className="h-3.5 w-3.5 rounded bg-slate-200 dark:bg-slate-700 border-slate-400 text-lumbago-secondary focus:ring-0 cursor-pointer" />
-                    </div>
-                    <SortableHeader label="St" sortKey="state" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Utwór" sortKey="title" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Artysta" sortKey="artist" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Album" sortKey="album" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="BPM" sortKey="bpm" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Key" sortKey="key" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <SortableHeader label="Gatunek" sortKey="genre" currentKey={props.currentSortKey} direction={props.currentSortDirection} onClick={handleSort} />
-                    <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-right py-2 pr-2">Opcje</div>
-                </div>
-
-                {/* File List */}
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                {/* --- FILE ROWS --- */}
+                <div className="divide-y divide-slate-800/50">
                     {filteredFiles.map((file, index) => (
                         <FileListItem 
                             key={file.id} 
@@ -252,14 +256,14 @@ const LibraryTab: React.FC<LibraryTabProps> = (props) => {
                             // Actions
                             onToggleFavorite={props.onToggleFavorite}
                             onAddToPlaylist={props.onAddToPlaylist}
-                            // Layout
-                            gridClass={`${gridTemplate} ${index % 2 === 0 ? 'bg-transparent' : 'bg-slate-50/50 dark:bg-white/[0.02]'}`}
+                            // Layout Injection
+                            gridClass={gridTemplate}
                         />
                     ))}
                 </div>
             </div>
         ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 px-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 px-2 mt-4">
                  {filteredFiles.map(file => (
                     <FileGridItem
                         key={file.id}

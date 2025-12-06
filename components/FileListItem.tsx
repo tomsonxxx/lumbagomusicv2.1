@@ -4,6 +4,7 @@ import { AudioFile, ProcessingState } from '../types';
 import { StatusIcon } from './StatusIcon';
 import AlbumCover from './AlbumCover';
 import MiniAudioVisualizer from './MiniAudioVisualizer';
+import { formatFileSize, formatDate } from '../utils/metadataUtils';
 
 const TagPreviewTooltip = React.lazy(() => import('./TagPreviewTooltip'));
 
@@ -22,7 +23,7 @@ interface FileListItemProps {
   // Playlist & Favs
   onToggleFavorite: (fileId: string) => void;
   onAddToPlaylist: (fileId: string) => void;
-  // Layout Prop
+  // Layout Prop (Grid Configuration from Parent)
   gridClass?: string; 
 }
 
@@ -33,7 +34,6 @@ const usePrevious = <T,>(value: T): T | undefined => {
     });
     return ref.current;
 };
-
 
 const FileListItem: React.FC<FileListItemProps> = ({
   file,
@@ -51,6 +51,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
 }) => {
   const [isExiting, setIsExiting] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const hoverTimeoutRef = useRef<any>(null);
 
   const itemRef = useRef<HTMLDivElement>(null);
@@ -62,6 +63,7 @@ const FileListItem: React.FC<FileListItemProps> = ({
   const displayTags = file.fetchedTags || file.originalTags;
   const displayName = file.newName || file.file.name;
   
+  // Flash Animation Logic
   useEffect(() => {
     const element = itemRef.current;
     if (!element) return;
@@ -99,22 +101,29 @@ const FileListItem: React.FC<FileListItemProps> = ({
       setIsHovered(false);
   };
 
-  // Base backgrounds handled by zebra striping in parent, override for states
-  let stateClasses = "hover:bg-lumbago-light/50";
+  const toggleExpand = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setIsExpanded(!isExpanded);
+  };
+
+  // --- Dynamic Styling ---
+  let stateClasses = "hover:bg-slate-800 transition-colors bg-slate-900/20"; // Subtle zebra default via parent divide
 
   if (isProcessing) {
-    stateClasses = "bg-gradient-to-r from-transparent via-indigo-900/10 to-transparent animate-gradient-loading border-b border-indigo-500/20";
+    stateClasses = "bg-gradient-to-r from-transparent via-indigo-900/20 to-transparent animate-gradient-loading border-b border-indigo-500/20";
   } else if (isActive) {
-      stateClasses = "!bg-lumbago-primary/5 border-l-2 border-l-lumbago-primary";
+      stateClasses = "!bg-indigo-900/30 border-l-2 border-l-lumbago-primary";
   } else if (file.isSelected) {
-    stateClasses = "!bg-lumbago-secondary/10";
+    stateClasses = "!bg-indigo-900/20";
   }
 
+  // --- Main Container Class ---
+  // Using flex for mobile (fallback) and the passed gridClass for desktop strict alignment
   const containerClasses = [
-      "transition-all duration-200 relative group text-sm",
+      "relative group text-xs min-h-[40px] flex md:grid items-center gap-2", 
       stateClasses,
       isExiting ? 'animate-fade-out' : '',
-      gridClass ? `${gridClass} md:gap-2 md:items-center py-1 px-2` : "flex items-center p-2"
+      gridClass ? `${gridClass} px-2` : "px-2"
   ].join(' ');
 
   return (
@@ -123,50 +132,53 @@ const FileListItem: React.FC<FileListItemProps> = ({
         e.dataTransfer.effectAllowed = 'copyMove';
     }}>
       
-      {/* Progress Bar for Processing (Mobile / Bottom overlay) */}
+      {/* Processing Bar Overlay */}
       {isProcessing && (
         <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-indigo-900/50 z-20">
            <div className="h-full bg-lumbago-primary animate-indeterminate-bar"></div>
         </div>
       )}
 
-      {/* --- Checkbox Column --- */}
-      <div className={`flex items-center justify-center ${gridClass ? '' : ''}`}>
+      {/* 1. CHECKBOX */}
+      <div className="flex items-center justify-center">
           <input 
             type="checkbox"
             checked={!!file.isSelected}
             onChange={(e) => onSelectionChange(file.id, e.target.checked)}
-            className="h-3.5 w-3.5 rounded bg-slate-800 border-slate-600 text-lumbago-secondary focus:ring-0 cursor-pointer z-10 opacity-60 group-hover:opacity-100 transition-opacity"
+            className="h-3 w-3 rounded bg-slate-800 border-slate-600 text-lumbago-secondary focus:ring-0 cursor-pointer z-10 opacity-40 group-hover:opacity-100 transition-opacity"
           />
       </div>
 
-      {/* --- Status Column --- */}
-      <div className="hidden md:flex justify-center items-center w-8">
-         {isProcessing ? (
-             <div className="flex gap-[2px] items-center justify-center h-3 w-4" title="Przetwarzanie...">
-                <div className="w-[2px] bg-lumbago-primary rounded-full animate-[loading-bar_0.8s_ease-in-out_infinite]" style={{ height: '40%', animationDelay: '0s' }}></div>
-                <div className="w-[2px] bg-lumbago-secondary rounded-full animate-[loading-bar_0.8s_ease-in-out_infinite]" style={{ height: '70%', animationDelay: '0.2s' }}></div>
-                <div className="w-[2px] bg-lumbago-primary rounded-full animate-[loading-bar_0.8s_ease-in-out_infinite]" style={{ height: '40%', animationDelay: '0.4s' }}></div>
+      {/* 2. STATUS / VISUALIZER */}
+      <div className="hidden md:flex justify-center items-center w-full border-r border-white/5 h-6">
+         {isActive ? (
+             <div className="h-3 w-5 flex items-end justify-center pb-0.5">
+                 <MiniAudioVisualizer isPlaying={!!isPlaying} />
+             </div>
+         ) : isProcessing ? (
+             <div className="flex gap-[1px] items-center justify-center h-2 w-3">
+                <div className="w-[1px] bg-lumbago-primary rounded-full animate-bounce delay-0 h-full"></div>
+                <div className="w-[1px] bg-lumbago-secondary rounded-full animate-bounce delay-100 h-full"></div>
+                <div className="w-[1px] bg-lumbago-primary rounded-full animate-bounce delay-200 h-full"></div>
              </div>
          ) : (
-             <div className="scale-[0.65]"><StatusIcon state={file.state} /></div>
+             <div className="scale-[0.6] opacity-60"><StatusIcon state={file.state} /></div>
          )}
       </div>
 
-      {/* --- Title & Cover Column --- */}
-      <div className={`flex items-center gap-3 overflow-hidden ${!gridClass ? 'flex-grow ml-2' : ''}`}>
-          
+      {/* 3. TITLE & COVER (Flex grow on mobile) */}
+      <div className="flex items-center gap-2 overflow-hidden flex-grow md:flex-grow-0 min-w-0">
           <div className="relative group/cover flex-shrink-0" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-             <div className="relative">
-                <AlbumCover tags={displayTags} className="w-8 h-8 rounded shadow-sm" />
+             <div className="relative flex items-center">
+                <AlbumCover tags={displayTags} className="w-7 h-7 rounded shadow-sm border border-white/5" />
                 <button 
                     onClick={onPlayPause} 
                     className={`absolute inset-0 flex items-center justify-center bg-black/50 rounded transition-opacity ${isActive || isPlaying ? 'opacity-100' : 'opacity-0 group-hover/cover:opacity-100'}`}
                 >
                     {isPlaying ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-lumbago-primary" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                     ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white pl-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
                     )}
                 </button>
              </div>
@@ -178,74 +190,150 @@ const FileListItem: React.FC<FileListItemProps> = ({
           </div>
 
           <div className="min-w-0 flex flex-col justify-center">
-             <div className="flex items-center gap-2">
-                <span className={`font-semibold text-sm truncate cursor-pointer hover:text-lumbago-primary transition-colors ${isActive ? 'text-lumbago-primary neon-text' : 'text-slate-200'}`} title={displayName} onClick={onPlayPause}>
+             <div className="flex items-center gap-1.5">
+                <span 
+                    className={`font-medium text-xs truncate cursor-pointer hover:text-lumbago-primary transition-colors leading-tight ${isActive ? 'text-lumbago-primary neon-text' : 'text-slate-200'}`} 
+                    title={displayName} 
+                    onClick={onPlayPause}
+                    onDoubleClick={toggleExpand}
+                >
                     {displayName}
                 </span>
                 
-                {/* --- Waveform Visualizer next to Title --- */}
-                {isActive && (
-                    <div className="flex-shrink-0 h-3 w-10 mb-0.5">
-                        <MiniAudioVisualizer isPlaying={!!isPlaying} />
-                    </div>
-                )}
-
                 <button 
                     onClick={() => onToggleFavorite(file.id)}
                     className={`transition-colors ${file.isFavorite ? 'text-lumbago-secondary' : 'text-slate-600 hover:text-lumbago-secondary opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" /></svg>
                 </button>
              </div>
-             
-             {/* Error message */}
-             {file.state === ProcessingState.ERROR && (
-                <div className="text-[10px] text-red-400 truncate leading-tight" title={file.errorMessage}>{file.errorMessage}</div>
-             )}
+             {/* Mobile: Artist under title */}
+             <div className="md:hidden text-[10px] text-slate-500 truncate">{displayTags?.artist}</div>
           </div>
       </div>
 
-      {/* --- Artist Column --- */}
-      <div className="hidden md:block truncate text-xs text-slate-400" title={displayTags?.artist}>
+      {/* 4. ARTIST */}
+      <div className="hidden md:block truncate text-[11px] text-slate-300" title={displayTags?.artist}>
           {displayTags?.artist || '-'}
       </div>
 
-      {/* --- Album Column --- */}
-      <div className="hidden md:block truncate text-xs text-slate-500" title={displayTags?.album}>
+      {/* 5. ALBUM */}
+      <div className="hidden md:block truncate text-[11px] text-slate-500 italic" title={displayTags?.album}>
           {displayTags?.album || '-'}
       </div>
 
-      {/* --- BPM Column --- */}
-      <div className="hidden md:block truncate text-xs font-mono text-lumbago-accent/80">
-          {displayTags?.bpm || '-'}
+      {/* 6. BPM (Badge) */}
+      <div className="hidden md:block truncate">
+          {displayTags?.bpm ? (
+              <span className="inline-block bg-cyan-950/40 text-cyan-300 px-1.5 py-px rounded border border-cyan-900/30 text-[9px] font-bold font-mono">
+                  {displayTags.bpm}
+              </span>
+          ) : (
+              <span className="text-slate-700 text-[9px]">-</span>
+          )}
       </div>
 
-      {/* --- Key Column --- */}
-      <div className="hidden md:block truncate text-xs font-mono text-lumbago-secondary/80">
-          {displayTags?.initialKey || '-'}
+      {/* 7. KEY (Badge) */}
+      <div className="hidden md:block truncate">
+          {displayTags?.initialKey ? (
+              <span className="inline-block bg-purple-950/40 text-purple-300 px-1.5 py-px rounded border border-purple-900/30 text-[9px] font-bold font-mono">
+                  {displayTags.initialKey}
+              </span>
+          ) : (
+              <span className="text-slate-700 text-[9px]">-</span>
+          )}
       </div>
 
-      {/* --- Genre/Year Column --- */}
-      <div className="hidden md:block truncate text-[10px] text-slate-500">
-          {displayTags?.genre ? <span className="bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{displayTags.genre}</span> : ''}
-          {displayTags?.year && <span className="ml-1 text-slate-600">{displayTags.year}</span>}
+      {/* 8. GENRE (Badge) */}
+      <div className="hidden md:block truncate text-[9px]">
+          {displayTags?.genre ? (
+              <span className="bg-slate-800 text-slate-400 px-1.5 py-px rounded border border-slate-700/50 truncate max-w-[70px] inline-block align-middle" title={displayTags.genre}>
+                  {displayTags.genre}
+              </span>
+          ) : (
+              <span className="text-slate-700">-</span>
+          )}
       </div>
 
-      {/* --- Actions Column --- */}
-      <div className="flex items-center justify-end gap-1 ml-auto md:ml-0 opacity-0 group-hover:opacity-100 transition-opacity">
-         <button onClick={() => onAddToPlaylist(file.id)} className="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-lumbago-primary transition-colors" title="Dodaj do playlisty">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
+      {/* 9. ACTIONS */}
+      <div className="hidden md:flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+         <button onClick={() => onAddToPlaylist(file.id)} className="p-1 rounded hover:bg-lumbago-primary hover:text-black text-slate-500 transition-colors" title="Dodaj do playlisty">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg>
          </button>
-         <button onClick={onInspect} className="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-white transition-colors" title="Szczegóły">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+         <button onClick={onInspect} className="p-1 rounded hover:bg-white hover:text-black text-slate-500 transition-colors" title="Szczegóły">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
          </button>
-         <button onClick={() => onEdit(file)} className="p-1 rounded hover:bg-white/10 text-slate-500 hover:text-lumbago-secondary transition-colors" title="Edytuj">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
+         <button onClick={() => onEdit(file)} className="p-1 rounded hover:bg-lumbago-secondary hover:text-black text-slate-500 transition-colors" title="Edytuj">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
          </button>
-         <button onClick={handleDelete} className="p-1 rounded hover:bg-red-500/10 text-slate-500 hover:text-red-500 transition-colors" title="Usuń">
-           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+         <button onClick={handleDelete} className="p-1 rounded hover:bg-red-500 hover:text-white text-slate-500 transition-colors" title="Usuń">
+           <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
          </button>
       </div>
+
+      {/* 10. EXPAND TOGGLE */}
+      <div className="flex items-center justify-center ml-auto md:ml-0">
+          <button 
+            onClick={toggleExpand}
+            className={`p-0.5 rounded-full text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-200 transform ${isExpanded ? 'rotate-180 text-white bg-white/10' : ''}`}
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+          </button>
+      </div>
+
+      {/* --- EXPANDED DETAILS (Accordion) --- */}
+      {isExpanded && (
+          <div className="col-span-full w-full bg-slate-900/80 border-t border-b border-slate-700/50 -mx-2 px-4 py-3 animate-fade-in origin-top shadow-inner backdrop-blur-sm z-20">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="space-y-1">
+                      <h4 className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-1">Info o Pliku</h4>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-12">Ścieżka:</span>
+                          <span className="text-slate-300 font-mono break-all">{file.webkitRelativePath || file.file.name}</span>
+                      </div>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-12">Rozmiar:</span>
+                          <span className="text-slate-300">{formatFileSize(file.file.size)}</span>
+                      </div>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-12">Data:</span>
+                          <span className="text-slate-300">{formatDate(file.file.lastModified)}</span>
+                      </div>
+                  </div>
+
+                  <div className="space-y-1">
+                      <h4 className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-1">Audio Info</h4>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-20">Bitrate:</span>
+                          <span className="text-lumbago-primary font-mono">{displayTags?.bitrate ? `${displayTags.bitrate} kbps` : '-'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-20">Sample Rate:</span>
+                          <span className="text-slate-300 font-mono">{displayTags?.sampleRate ? `${displayTags.sampleRate} Hz` : '-'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                          <span className="text-slate-500 w-20">Rok:</span>
+                          <span className="text-slate-300">{displayTags?.year || '-'}</span>
+                      </div>
+                  </div>
+
+                  <div className="space-y-1">
+                      <h4 className="font-bold text-slate-500 uppercase tracking-wider text-[9px] mb-1">Komentarz / Label</h4>
+                      <div className="p-1.5 bg-black/40 rounded border border-slate-800 text-slate-400 italic min-h-[30px] text-[10px]">
+                          {displayTags?.comments || displayTags?.copyright || 'Brak.'}
+                      </div>
+                      
+                      {/* Mobile Actions in Expanded View */}
+                      <div className="md:hidden flex justify-end pt-2 gap-3 border-t border-slate-800 mt-2">
+                          <button onClick={() => onAddToPlaylist(file.id)} className="text-slate-300 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" /></svg> Playlista</button>
+                          <button onClick={() => onEdit(file)} className="text-slate-300 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg> Edytuj</button>
+                          <button onClick={handleDelete} className="text-red-400 flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg> Usuń</button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 };
