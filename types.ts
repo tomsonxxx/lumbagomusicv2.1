@@ -1,3 +1,4 @@
+
 export enum ProcessingState {
   PENDING = 'PENDING',
   PROCESSING = 'PROCESSING',
@@ -24,6 +25,8 @@ export interface ID3Tags {
   encodedBy?: string;
   originalArtist?: string;
   discNumber?: string; // Can be "1" or "1/2"
+  bpm?: number;
+  initialKey?: string;
 }
 
 export interface AudioFile {
@@ -34,6 +37,7 @@ export interface AudioFile {
   fetchedTags?: ID3Tags;
   newName?: string;
   isSelected?: boolean;
+  isFavorite?: boolean; // Nowe pole
   errorMessage?: string;
   dateAdded: number;
   handle?: any; // FileSystemFileHandle for direct saving
@@ -41,4 +45,45 @@ export interface AudioFile {
   duration?: number; // Duration in seconds
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  trackIds: string[];
+  createdAt: number;
+  type?: 'manual';
+}
+
+export type SmartPlaylistRuleOperator = 'equals' | 'contains' | 'gt' | 'lt' | 'between';
+export type SmartPlaylistField = 'bpm' | 'year' | 'genre' | 'artist' | 'title';
+
+export interface SmartPlaylistRule {
+  id: string;
+  field: SmartPlaylistField;
+  operator: SmartPlaylistRuleOperator;
+  value: string;
+  value2?: string; // For 'between'
+}
+
+export interface SmartPlaylist {
+  id: string;
+  name: string;
+  rules: SmartPlaylistRule[];
+  createdAt: number;
+  type: 'smart';
+}
+
 export type GroupKey = 'artist' | 'album' | 'none';
+
+// Extended sort keys for column sorting
+export type SortKey = 
+  | 'dateAdded' 
+  | 'originalName' 
+  | 'newName' 
+  | 'state'
+  | 'artist'
+  | 'title'
+  | 'album'
+  | 'bpm'
+  | 'key'
+  | 'year'
+  | 'genre';

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AudioFile, ID3Tags } from '../types';
 import AlbumCover from './AlbumCover';
+import BpmTapButton from './BpmTapButton';
 
 interface EditTagsModalProps {
   isOpen: boolean;
@@ -45,6 +46,10 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
       ...prevTags,
       [name]: type === 'number' ? (value ? Number(value) : undefined) : value,
     }));
+  };
+
+  const handleBpmUpdate = (bpm: number) => {
+      setTags(prev => ({ ...prev, bpm }));
   };
 
   const handleSave = () => {
@@ -101,15 +106,15 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Edytuj Tagi</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 truncate" title={file.file.name}>
+      <div className="glass-panel rounded-lg shadow-2xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale border border-lumbago-border" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-xl font-bold text-white neon-text mb-2">Edytuj Tagi</h2>
+        <p className="text-sm text-slate-400 mb-4 truncate" title={file.file.name}>
           Oryginalna nazwa: {file.file.name}
         </p>
 
         {/* Manual Search Section */}
-        <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
-           <label htmlFor="manualQuery" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        <div className="mb-6 p-4 bg-lumbago-dark/50 rounded-lg border border-lumbago-border/30">
+           <label htmlFor="manualQuery" className="block text-sm font-medium text-slate-300 mb-1">
              Ręczne wyszukiwanie tagów
            </label>
            <div className="flex space-x-2">
@@ -118,33 +123,33 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
                id="manualQuery"
                value={manualQuery}
                onChange={(e) => setManualQuery(e.target.value)}
-               className="flex-grow bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-indigo-500 sm:text-sm"
+               className="flex-grow bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm"
                placeholder="Np. Artist - Song Title"
              />
-             <button onClick={handleSearch} disabled={isSearching || !manualQuery} className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed flex items-center">
+             <button onClick={handleSearch} disabled={isSearching || !manualQuery} className="px-4 py-2 text-sm font-bold text-lumbago-dark bg-lumbago-primary rounded-md hover:bg-[#4fd1ff] disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center transition-colors">
                {isSearching ? (
-                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-lumbago-dark" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                  </svg>
                ) : 'Szukaj'}
              </button>
            </div>
-           {searchError && <p className="text-xs text-red-500 mt-2">{searchError}</p>}
+           {searchError && <p className="text-xs text-red-400 mt-2">{searchError}</p>}
         </div>
 
         {/* Tags Form */}
         <div className="flex flex-col md:flex-row gap-6">
           <div className="md:w-1/4 flex flex-col items-center">
-            <div className="relative group cursor-pointer" onClick={() => tags.albumCoverUrl && onZoomCover(tags.albumCoverUrl)}>
-                <AlbumCover tags={tags} className="w-48 h-48" />
+            <div className="relative group cursor-pointer shadow-[0_0_15px_rgba(142,240,255,0.2)] rounded-md" onClick={() => tags.albumCoverUrl && onZoomCover(tags.albumCoverUrl)}>
+                <AlbumCover tags={tags} className="w-48 h-48 rounded-md" />
                 {tags.albumCoverUrl && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-md">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" /></svg>
                     </div>
                 )}
             </div>
-             <label htmlFor="albumCoverUrl" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mt-4 self-stretch">
+             <label htmlFor="albumCoverUrl" className="block text-sm font-medium text-slate-300 mt-4 self-stretch">
                URL Okładki
              </label>
              <input
@@ -153,7 +158,7 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
                id="albumCoverUrl"
                value={tags.albumCoverUrl || ''}
                onChange={handleChange}
-               className="mt-1 block w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-indigo-500 sm:text-sm"
+               className="mt-1 block w-full bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm"
                placeholder="URL do obrazka"
              />
           </div>
@@ -161,7 +166,7 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {tagFields.map((key) => (
                 <div key={key} className={['title', 'album', 'copyright'].includes(key) ? 'sm:col-span-2' : ''}>
-                  <label htmlFor={key} className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  <label htmlFor={key} className="block text-sm font-medium text-slate-300 mb-1">
                     {tagLabels[key]}
                   </label>
                   <input
@@ -170,14 +175,45 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
                     id={key}
                     value={tags[key] || ''}
                     onChange={handleChange}
-                    className="mt-1 block w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                    className="block w-full bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm placeholder-slate-600"
                     placeholder={`Wprowadź ${tagLabels[key]?.toLowerCase()}`}
                   />
                 </div>
               ))}
+              
+              {/* Special Fields Row: BPM & Key */}
+              <div>
+                  <label htmlFor="bpm" className="block text-sm font-medium text-slate-300 mb-1">BPM</label>
+                  <div className="flex gap-2">
+                      <input
+                        type="number"
+                        name="bpm"
+                        id="bpm"
+                        value={tags.bpm || ''}
+                        onChange={handleChange}
+                        className="block w-full bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm placeholder-slate-600"
+                        placeholder="128"
+                      />
+                      <BpmTapButton onBpmDetected={handleBpmUpdate} />
+                  </div>
+              </div>
+              
+              <div>
+                  <label htmlFor="initialKey" className="block text-sm font-medium text-slate-300 mb-1">Klucz (Key)</label>
+                  <input
+                    type="text"
+                    name="initialKey"
+                    id="initialKey"
+                    value={tags.initialKey || ''}
+                    onChange={handleChange}
+                    className="block w-full bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm placeholder-slate-600"
+                    placeholder="8A"
+                  />
+              </div>
+
             </div>
             <div className="mt-4">
-               <label htmlFor="comments" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+               <label htmlFor="comments" className="block text-sm font-medium text-slate-300 mb-1">
                   {tagLabels['comments']}
                 </label>
                 <textarea
@@ -186,7 +222,7 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
                   value={tags.comments || ''}
                   onChange={handleChange}
                   rows={3}
-                  className="mt-1 block w-full bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                  className="mt-1 block w-full bg-slate-900 border border-slate-700 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-lumbago-primary sm:text-sm placeholder-slate-600"
                   placeholder="Wprowadź komentarze lub ciekawostki..."
                 />
             </div>
@@ -194,12 +230,12 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-end space-x-4 mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600">Anuluj</button>
+        <div className="flex justify-end space-x-4 mt-6 pt-4 border-t border-slate-700">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 rounded-md hover:bg-slate-700 transition-colors">Anuluj</button>
           <button 
             onClick={handleSave} 
-            className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-md hover:bg-indigo-500"
-            title="Zapisuje zmiany w pamięci podręcznej aplikacji do późniejszego pobrania lub zapisu."
+            className="px-4 py-2 text-sm font-bold text-lumbago-dark bg-lumbago-primary rounded-md hover:bg-[#4fd1ff] transition-colors shadow-lg shadow-lumbago-primary/20"
+            title="Zapisuje zmiany w pamięci podręcznej aplikacji."
           >
             Zapisz
           </button>
@@ -207,13 +243,13 @@ const EditTagsModal: React.FC<EditTagsModalProps> = ({
             <button 
               onClick={() => onApply(tags)} 
               disabled={isApplying || !hasChanges}
-              className="px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-md hover:bg-green-500 disabled:bg-green-400 disabled:cursor-not-allowed flex items-center justify-center w-[160px]"
-              title="Zapisuje zmiany i natychmiast nadpisuje oryginalny plik. Dostępne tylko w trybie bezpośredniego dostępu."
+              className="px-4 py-2 text-sm font-bold text-lumbago-dark bg-lumbago-accent rounded-md hover:bg-[#00ff88] disabled:bg-slate-600 disabled:cursor-not-allowed flex items-center justify-center w-[160px] transition-colors shadow-lg shadow-lumbago-accent/20"
+              title="Zapisuje zmiany i natychmiast nadpisuje plik na dysku."
             >
               {isApplying ? (
-                  <><span className="btn-spinner !mr-2"></span><span>Zapisuję...</span></>
+                  <><span className="btn-spinner !mr-2 border-lumbago-dark"></span><span>Zapisuję...</span></>
               ) : (
-                  'Zastosuj zmiany'
+                  'Zastosuj (Dysk)'
               )}
             </button>
           )}

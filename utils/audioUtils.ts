@@ -1,5 +1,3 @@
-
-
 import { ID3Tags, AudioFile, ProcessingState } from '../types';
 
 // Assume jsmediatags is loaded globally via a <script> tag
@@ -114,6 +112,15 @@ export const readID3Tags = (file: File): Promise<ID3Tags> => {
         if (tagData.TMOO?.data) tags.mood = tagData.TMOO.data; 
         else if (tagData.MOOD) tags.mood = tagData.MOOD;
         
+        // 11. BPM (TBPM)
+        if (tagData.TBPM?.data) tags.bpm = parseInt(tagData.TBPM.data);
+        else if (tagData.BPM) tags.bpm = parseInt(tagData.BPM);
+
+        // 12. Initial Key (TKEY)
+        if (tagData.TKEY?.data) tags.initialKey = tagData.TKEY.data;
+        else if (tagData.INITIALKEY) tags.initialKey = tagData.INITIALKEY;
+        else if (tagData.KEY) tags.initialKey = tagData.KEY;
+
         // Picture (jsmediatags handles parsing METADATA_BLOCK_PICTURE for FLAC as well)
         if (tagData.picture) {
             const { data, format } = tagData.picture;
@@ -189,6 +196,7 @@ const applyID3TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     }
     const writer = new Writer(fileBuffer);
 
+    // Standard frames supported by most players and libraries
     if (tags.title) writer.setFrame('TIT2', tags.title);
     if (tags.artist) writer.setFrame('TPE1', [tags.artist]);
     if (tags.album) writer.setFrame('TALB', tags.album);
@@ -196,13 +204,46 @@ const applyID3TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     if (tags.genre) writer.setFrame('TCON', [tags.genre]);
     if (tags.trackNumber) writer.setFrame('TRCK', tags.trackNumber);
     if (tags.albumArtist) writer.setFrame('TPE2', [tags.albumArtist]);
-    if (tags.mood) writer.setFrame('TMOO', tags.mood);
-    if (tags.comments) writer.setFrame('COMM', { description: 'Comment', text: tags.comments });
     if (tags.composer) writer.setFrame('TCOM', [tags.composer]);
     if (tags.copyright) writer.setFrame('TCOP', tags.copyright);
     if (tags.encodedBy) writer.setFrame('TENC', tags.encodedBy);
-    if (tags.originalArtist) writer.setFrame('TOPE', [tags.originalArtist]);
     if (tags.discNumber) writer.setFrame('TPOS', tags.discNumber);
+    if (tags.comments) writer.setFrame('COMM', { description: 'Comment', text: tags.comments });
+    
+    // Less standard frames - wrap in try-catch to prevent crashes if library version doesn't support them
+    // or if validation fails.
+    
+    if (tags.mood) {
+        try {
+            writer.setFrame('TMOO', tags.mood);
+        } catch (e) {
+            console.warn('ID3Writer: Pominięto nieobsługiwaną ramkę TMOO (Mood).', e);
+        }
+    }
+    
+    if (tags.originalArtist) {
+        try {
+            writer.setFrame('TOPE', [tags.originalArtist]);
+        } catch (e) {
+             console.warn('ID3Writer: Pominięto nieobsługiwaną ramkę TOPE (Original Artist).', e);
+        }
+    }
+
+    if (tags.bpm) {
+        try {
+            writer.setFrame('TBPM', String(tags.bpm));
+        } catch (e) {
+            console.warn('ID3Writer: Pominięto nieobsługiwaną ramkę TBPM.', e);
+        }
+    }
+
+    if (tags.initialKey) {
+        try {
+            writer.setFrame('TKEY', tags.initialKey);
+        } catch (e) {
+            console.warn('ID3Writer: Pominięto nieobsługiwaną ramkę TKEY.', e);
+        }
+    }
     
     if (tags.albumCoverUrl) {
         try {
@@ -256,6 +297,7 @@ const applyMP4TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     if (tags.composer) writer.setTag('©wrt', tags.composer);
     if (tags.copyright) writer.setTag('cprt', tags.copyright);
     if (tags.encodedBy) writer.setTag('©enc', tags.encodedBy);
+    if (tags.bpm) writer.setTag('tmpo', tags.bpm);
     
     // NEW: Add custom tags for 'mood' and 'originalArtist' for better compatibility with iTunes.
     // These are stored in generic "----" atoms with a reverse-DNS mean and a name.
@@ -264,6 +306,11 @@ const applyMP4TagsToFile = async (fileBuffer: ArrayBuffer, tags: ID3Tags): Promi
     }
     if (tags.originalArtist) {
         writer.setTag('----', { mean: 'com.apple.iTunes', name: 'ORIGINAL ARTIST', data: tags.originalArtist });
+    }
+    if (tags.initialKey) {
+        // 'key' atom is uncommon in standard mp4 libraries, often stored as custom or comment
+        // Using custom atom for safety
+        writer.setTag('----', { mean: 'com.apple.iTunes', name: 'INITIAL KEY', data: tags.initialKey });
     }
 
     // Track and Disc numbers are special cases

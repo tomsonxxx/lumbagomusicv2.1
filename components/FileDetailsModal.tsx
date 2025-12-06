@@ -1,35 +1,88 @@
-import React, { useMemo } from 'react';
+
+import React, { useMemo, useState } from 'react';
 import { AudioFile, ID3Tags } from '../types';
 import { analyzeFilename, formatFileSize, formatDate } from '../utils/metadataUtils';
+import { detectBPM, detectKey } from '../utils/audioAnalysis';
 import AlbumCover from './AlbumCover';
 
 interface FileDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   file: AudioFile;
+  onRecognizeAudio?: (file: AudioFile) => void;
 }
 
-const FileDetailsModal: React.FC<FileDetailsModalProps> = ({ isOpen, onClose, file }) => {
+const FileDetailsModal: React.FC<FileDetailsModalProps> = ({ isOpen, onClose, file, onRecognizeAudio }) => {
+  const [analyzedBpm, setAnalyzedBpm] = useState<number | null>(null);
+  const [analyzedKey, setAnalyzedKey] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<'bpm' | 'key' | null>(null);
+
   if (!isOpen) return null;
 
   const analysis = useMemo(() => analyzeFilename(file.file.name), [file.file.name]);
   const tags = file.fetchedTags || file.originalTags || {};
 
+  const handleDetectBPM = async () => {
+      setIsAnalyzing('bpm');
+      try {
+          const bpm = await detectBPM(file.file);
+          setAnalyzedBpm(bpm);
+      } catch (e) {
+          console.error(e);
+          setAnalyzedBpm(0);
+      } finally {
+          setIsAnalyzing(null);
+      }
+  };
+
+  const handleDetectKey = async () => {
+      setIsAnalyzing('key');
+      try {
+          const result = await detectKey(file.file);
+          setAnalyzedKey(`${result.key} (${result.camelot})`);
+      } catch (e) {
+          console.error(e);
+          setAnalyzedKey('Error');
+      } finally {
+          setIsAnalyzing(null);
+      }
+  };
+
   // Helper do wyświetlania rzędu w tabeli
-  const TagRow = ({ label, value, originalValue }: { label: string, value?: string | number, originalValue?: string | number }) => {
+  const TagRow = ({ label, value, originalValue, onDetect, analyzedValue, isDetecting }: { label: string, value?: string | number, originalValue?: string | number, onDetect?: () => void, analyzedValue?: string | number | null, isDetecting?: boolean }) => {
     const isDifferent = originalValue && value && originalValue !== value;
     
-    if (!value && !originalValue) return null;
-
     return (
       <tr className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50">
         <td className="py-2 px-3 text-sm font-medium text-slate-500 dark:text-slate-400">{label}</td>
-        <td className="py-2 px-3 text-sm text-slate-800 dark:text-slate-200 font-mono break-all">
-          {value || <span className="text-slate-400 italic">brak</span>}
-          {isDifferent && (
-            <div className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
-               Oryg: {originalValue}
-            </div>
+        <td className="py-2 px-3 text-sm text-slate-800 dark:text-slate-200 font-mono break-all flex items-center justify-between">
+          <div className="flex flex-col">
+              <span>{value || <span className="text-slate-400 italic">brak</span>}</span>
+              {isDifferent && (
+                <span className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                   Oryg: {originalValue}
+                </span>
+              )}
+              {analyzedValue && (
+                  <span className="text-xs text-lumbago-accent mt-0.5 font-bold">
+                      Wykryto: {analyzedValue}
+                  </span>
+              )}
+          </div>
+          {onDetect && (
+              <button 
+                onClick={onDetect} 
+                disabled={isDetecting}
+                className="ml-2 p-1.5 text-xs bg-lumbago-primary/10 text-lumbago-primary rounded hover:bg-lumbago-primary/20 transition-colors flex items-center gap-1"
+                title="Wykryj z Audio (lokalnie)"
+              >
+                  {isDetecting ? (
+                      <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                  )}
+                  Wykryj
+              </button>
           )}
         </td>
       </tr>
@@ -55,11 +108,22 @@ const FileDetailsModal: React.FC<FileDetailsModalProps> = ({ isOpen, onClose, fi
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-mono">{file.file.name}</p>
                 </div>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
+            <div className="flex items-center gap-2">
+                {onRecognizeAudio && (
+                    <button 
+                        onClick={() => onRecognizeAudio(file)}
+                        className="px-3 py-1.5 text-xs font-bold bg-lumbago-secondary text-lumbago-dark rounded hover:bg-white transition-colors flex items-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                        Rozpoznaj (AI)
+                    </button>
+                )}
+                <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
         </div>
 
         {/* Content - Scrollable */}
@@ -152,6 +216,24 @@ const FileDetailsModal: React.FC<FileDetailsModalProps> = ({ isOpen, onClose, fi
                                 <TagRow label="Wykonawca albumu" value={tags.albumArtist} originalValue={file.originalTags.albumArtist} />
                                 <TagRow label="Rok" value={tags.year} originalValue={file.originalTags.year} />
                                 <TagRow label="Gatunek" value={tags.genre} originalValue={file.originalTags.genre} />
+                                
+                                <TagRow 
+                                    label="BPM" 
+                                    value={tags.bpm} 
+                                    originalValue={file.originalTags.bpm} 
+                                    onDetect={handleDetectBPM}
+                                    analyzedValue={analyzedBpm}
+                                    isDetecting={isAnalyzing === 'bpm'}
+                                />
+                                <TagRow 
+                                    label="Klucz (Key)" 
+                                    value={tags.initialKey} 
+                                    originalValue={file.originalTags.initialKey}
+                                    onDetect={handleDetectKey}
+                                    analyzedValue={analyzedKey}
+                                    isDetecting={isAnalyzing === 'key'}
+                                />
+
                                 <TagRow label="Nr utworu" value={tags.trackNumber} originalValue={file.originalTags.trackNumber} />
                                 <TagRow label="Nr dysku" value={tags.discNumber} originalValue={file.originalTags.discNumber} />
                                 <TagRow label="Kompozytor" value={tags.composer} originalValue={file.originalTags.composer} />

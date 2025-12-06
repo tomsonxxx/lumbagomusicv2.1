@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { AIProvider, ApiKeys } from '../services/aiService';
+import { AIProvider, ApiKeys } from '../utils/services/aiService';
 import { GeminiIcon } from './icons/GeminiIcon';
 import { GrokIcon } from './icons/GrokIcon';
 import { OpenAIIcon } from './icons/OpenAIIcon';
